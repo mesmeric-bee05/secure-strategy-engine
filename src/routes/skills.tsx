@@ -67,6 +67,21 @@ export const Route = createFileRoute("/skills")({
 
 type SkillRow = ExtractedSkillT;
 
+/** BCP-47 codes mapped to the AI extractor's 2-letter language hint. */
+const SPEECH_LANGS = [
+  { code: "en-US", label: "English (US)", aiLang: "en" },
+  { code: "en-GB", label: "English (UK)", aiLang: "en" },
+  { code: "sw-KE", label: "Kiswahili (Kenya)", aiLang: "sw" },
+  { code: "sw-TZ", label: "Kiswahili (Tanzania)", aiLang: "sw" },
+  { code: "fr-FR", label: "Français", aiLang: "fr" },
+  { code: "ha-NG", label: "Hausa (Nigeria)", aiLang: "ha" },
+] as const;
+type SpeechLang = (typeof SPEECH_LANGS)[number]["code"];
+type AiLang = (typeof SPEECH_LANGS)[number]["aiLang"];
+function aiLangFor(code: SpeechLang): AiLang {
+  return (SPEECH_LANGS.find((s) => s.code === code)?.aiLang ?? "en") as AiLang;
+}
+
 function SkillsPage() {
   const search = Route.useSearch();
   const personasQ = useQuery({
@@ -80,13 +95,48 @@ function SkillsPage() {
 
   const personas = personasQ.data?.personas ?? [];
 
-  const [text, setText] = useState("");
+  const STORAGE_KEY = "talentgraph:skills:draft";
+  const [text, setText] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return window.localStorage.getItem(STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [persona, setPersona] = useState<string | undefined>(search.persona);
-  const [language] = useState<"en" | "sw" | "fr" | "ha">("en");
+  const [language, setLanguage] = useState<SpeechLang>(() => {
+    if (typeof window === "undefined") return "en-US";
+    try {
+      const v = window.localStorage.getItem("talentgraph:skills:lang");
+      return (v as SpeechLang) ?? "en-US";
+    } catch {
+      return "en-US";
+    }
+  });
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
 
-  // Persona quick-fill
+  // Persist draft text to localStorage (debounced via React's batch updates).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, text);
+    } catch {
+      /* quota exceeded — ignore */
+    }
+  }, [text]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("talentgraph:skills:lang", language);
+    } catch {
+      /* noop */
+    }
+  }, [language]);
+
+  // Persona quick-fill — only when no draft is restored.
   useEffect(() => {
     if (!persona) return;
     const p = personas.find((x) => x.slug === persona);
@@ -99,7 +149,7 @@ function SkillsPage() {
       extractFn({
         data: {
           text: text.trim(),
-          language,
+          language: aiLangFor(language),
           personaSlug: persona as never,
         },
       }),
@@ -126,6 +176,7 @@ function SkillsPage() {
 
   const voice = useSpeechRecognition({
     onText: (t) => setText((prev) => prev + (prev ? " " : "") + t),
+    lang: language,
   });
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
@@ -207,12 +258,25 @@ function SkillsPage() {
                   {voice.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
                   {voice.listening ? "Stop" : "Speak"}
                 </button>
+                <select
+                  aria-label="Recognition language"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as SpeechLang)}
+                  disabled={voice.listening}
+                  className="rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 outline-none focus:border-gold-glow disabled:opacity-50"
+                >
+                  {SPEECH_LANGS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
                 <span className="text-[10px] text-tx-2">
                   {voice.error
                     ? voice.error
                     : voice.supported
                       ? voice.listening
-                        ? "Listening…"
+                        ? `Listening (${language})…`
                         : "Web Speech API"
                       : "Voice unavailable — please type instead"}
                 </span>

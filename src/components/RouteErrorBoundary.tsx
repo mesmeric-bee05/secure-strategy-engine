@@ -1,6 +1,9 @@
 import { useRouter } from "@tanstack/react-router";
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { useEffect } from "react";
+import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { logClientError } from "@/server/audit.functions";
 
 export interface RouteErrorBoundaryProps {
   error: Error;
@@ -11,8 +14,8 @@ export interface RouteErrorBoundaryProps {
 
 /**
  * User-friendly error boundary used by route `errorComponent`.
- * Logs the full error to the console for debugging and surfaces a
- * concise, branded panel with a Retry button that re-runs loaders.
+ * Logs to the append-only audit trail on mount and on retry.
+ * Surfaces a toast that confirms whether retry succeeded or failed.
  */
 export function RouteErrorBoundary({
   error,
@@ -20,11 +23,53 @@ export function RouteErrorBoundary({
   module = "this page",
 }: RouteErrorBoundaryProps) {
   const router = useRouter();
+  const logError = useServerFn(logClientError);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error(`[RouteError:${module}]`, error);
-  }, [error, module]);
+    void logError({
+      data: {
+        module,
+        route:
+          typeof window !== "undefined"
+            ? window.location.pathname + window.location.search
+            : "ssr",
+        message: error.message || "unknown error",
+        stack: error.stack?.slice(0, 4000),
+      },
+    }).catch(() => {
+      /* never let audit failure cascade */
+    });
+  }, [error, module, logError]);
+
+  async function handleRetry() {
+    setRetrying(true);
+    const toastId = toast.loading(`Retrying ${module}…`);
+    try {
+      await router.invalidate({ sync: true });
+      reset();
+      toast.success(`${module} loaded`, { id: toastId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Retry failed";
+      toast.error(`Still failing: ${msg}`, { id: toastId });
+      void logError({
+        data: {
+          module,
+          route:
+            typeof window !== "undefined"
+              ? window.location.pathname + window.location.search
+              : "ssr",
+          message: `retry_failed: ${msg}`,
+        },
+      }).catch(() => {
+        /* noop */
+      });
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
@@ -48,13 +93,19 @@ export function RouteErrorBoundary({
         </details>
         <button
           type="button"
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
-          className="inline-flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-[12px] font-semibold text-bg-0 transition hover:opacity-90"
+          onClick={handleRetry}
+          disabled={retrying}
+          className="inline-flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-[12px] font-semibold text-bg-0 transition hover:opacity-90 disabled:opacity-60"
         >
-          <RotateCcw className="h-3.5 w-3.5" /> Retry
+          {retrying ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…
+            </>
+          ) : (
+            <>
+              <RotateCcw className="h-3.5 w-3.5" /> Retry
+            </>
+          )}
         </button>
       </div>
     </div>
