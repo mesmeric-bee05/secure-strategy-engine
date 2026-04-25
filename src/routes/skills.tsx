@@ -80,13 +80,48 @@ function SkillsPage() {
 
   const personas = personasQ.data?.personas ?? [];
 
-  const [text, setText] = useState("");
+  const STORAGE_KEY = "talentgraph:skills:draft";
+  const [text, setText] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return window.localStorage.getItem(STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [persona, setPersona] = useState<string | undefined>(search.persona);
-  const [language] = useState<"en" | "sw" | "fr" | "ha">("en");
+  const [language, setLanguage] = useState<SpeechLang>(() => {
+    if (typeof window === "undefined") return "en-US";
+    try {
+      const v = window.localStorage.getItem("talentgraph:skills:lang");
+      return (v as SpeechLang) ?? "en-US";
+    } catch {
+      return "en-US";
+    }
+  });
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
 
-  // Persona quick-fill
+  // Persist draft text to localStorage (debounced via React's batch updates).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, text);
+    } catch {
+      /* quota exceeded — ignore */
+    }
+  }, [text]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("talentgraph:skills:lang", language);
+    } catch {
+      /* noop */
+    }
+  }, [language]);
+
+  // Persona quick-fill — only when no draft is restored.
   useEffect(() => {
     if (!persona) return;
     const p = personas.find((x) => x.slug === persona);
