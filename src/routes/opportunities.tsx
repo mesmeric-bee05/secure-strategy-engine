@@ -51,20 +51,20 @@ export const Route = createFileRoute("/opportunities")({
       },
     ],
   }),
+  loaderDeps: ({ search }) => ({ country: search.country }),
   loader: ({ context, deps }) => {
     void context.queryClient.prefetchQuery({
       queryKey: ["countries"],
       queryFn: () => listCountries(),
     });
     void context.queryClient.prefetchQuery({
-      queryKey: ["opportunities", deps?.country ?? null],
+      queryKey: ["opportunities", deps.country ?? null],
       queryFn: () =>
         listOpportunities({
-          data: { countryCode: deps?.country, limit: 24 },
+          data: { countryCode: deps.country, limit: 24 },
         }),
     });
   },
-  loaderDeps: ({ search }) => ({ country: search.country }),
   component: OpportunitiesPage,
 });
 
