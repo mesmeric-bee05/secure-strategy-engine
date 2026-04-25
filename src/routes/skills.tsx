@@ -126,7 +126,9 @@ function SkillsPage() {
       const raw = window.localStorage.getItem(primaryKey);
       if (raw) return JSON.parse(raw) as Record<string, T>;
       const legacy = window.localStorage.getItem(legacyKey);
-      return legacy ? ({ default: legacy } as Record<string, T>) : {};
+      return legacy
+        ? ({ default: legacy as T } as Record<string, T>)
+        : {};
     } catch {
       return {};
     }
