@@ -584,3 +584,52 @@ function fakeHash(input: string): string {
   }
   return h.toString(16).padStart(16, "0").repeat(4).slice(0, 64);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Saved indicator                                                            */
+/* -------------------------------------------------------------------------- */
+function SavedIndicator({
+  status,
+  error,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+  error: string | null;
+}) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="inline-flex items-center gap-1 text-[10.5px] text-tx-2"
+      >
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-mint"
+      >
+        <Check className="h-3 w-3" />
+        Saved
+      </span>
+    );
+  }
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      title={error ?? "Save failed"}
+      className="inline-flex items-center gap-1 text-[10.5px] text-coral"
+    >
+      <AlertTriangle className="h-3 w-3" />
+      {error ?? "Save failed"}
+    </span>
+  );
+}
+
