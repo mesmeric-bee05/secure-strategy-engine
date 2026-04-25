@@ -38,11 +38,11 @@ describe("LastErrorPanel — expiry rendering", () => {
     expect(containers.length).toBeGreaterThanOrEqual(1);
     const outer = containers[0];
     expect(outer.getAttribute("aria-live")).toBe("off");
-    expect(screen.getByText(/Last error \(expired\)/i)).toBeInTheDocument();
-    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.getByText(/Last error \(expired\)/i)).toBeTruthy();
+    expect(screen.getByText("Expired")).toBeTruthy();
     // Should NOT be flagged as a fresh alert.
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByText("stale boom")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("stale boom")).toBeTruthy();
   });
 
   it("renders an active alert (role=alert) for a fresh record", () => {
@@ -60,9 +60,9 @@ describe("LastErrorPanel — expiry rendering", () => {
 
     render(<LastErrorPanel />);
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText("Expired")).not.toBeInTheDocument();
-    expect(screen.getByText("fresh boom")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(screen.queryByText("Expired")).toBeNull();
+    expect(screen.getByText("fresh boom")).toBeTruthy();
   });
 
   it("renders nothing when no record is present", () => {
