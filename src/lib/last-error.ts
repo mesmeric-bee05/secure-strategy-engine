@@ -5,6 +5,10 @@
  * Stores the most recent error in sessionStorage so it survives the boundary's
  * own retry/unmount cycle, and emits a `talentgraph:last-error` event so
  * subscribers can update without polling.
+ *
+ * Errors older than `MAX_AGE_MS` (24h) are considered stale and surfaced as
+ * `expired` so the UI can render a muted "Expired" state instead of a fresh
+ * alert. Stale records are also auto-cleared on next read.
  */
 
 export interface LastErrorRecord {
@@ -15,17 +19,27 @@ export interface LastErrorRecord {
   message: string;
   /** ISO timestamp. */
   at: string;
+  /** True when the record is older than MAX_AGE_MS. */
+  expired?: boolean;
 }
 
 const KEY = "talentgraph:last-error";
 const EVT = "talentgraph:last-error";
+/** Maximum age before a record is considered stale. */
+export const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 
 function safeWindow(): Window | null {
   return typeof window === "undefined" ? null : window;
 }
 
+function isExpired(rec: Pick<LastErrorRecord, "at">): boolean {
+  const ts = Date.parse(rec.at);
+  if (Number.isNaN(ts)) return true;
+  return Date.now() - ts > MAX_AGE_MS;
+}
+
 export function recordLastError(
-  input: Omit<LastErrorRecord, "id" | "at">
+  input: Omit<LastErrorRecord, "id" | "at" | "expired">
 ): LastErrorRecord {
   const rec: LastErrorRecord = {
     ...input,
@@ -49,7 +63,18 @@ export function readLastError(): LastErrorRecord | null {
   try {
     const raw = w.sessionStorage.getItem(KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as LastErrorRecord;
+    const parsed = JSON.parse(raw) as LastErrorRecord;
+    if (isExpired(parsed)) {
+      // Auto-purge stale records so they don't accumulate, but surface one
+      // final "expired" payload so the UI can show the expired pill briefly.
+      try {
+        w.sessionStorage.removeItem(KEY);
+      } catch {
+        /* noop */
+      }
+      return { ...parsed, expired: true };
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -73,6 +98,10 @@ export function subscribeLastError(
   if (!w) return () => {};
   const handler = (e: Event) => {
     const detail = (e as CustomEvent<LastErrorRecord | null>).detail ?? null;
+    if (detail && isExpired(detail)) {
+      cb({ ...detail, expired: true });
+      return;
+    }
     cb(detail);
   };
   w.addEventListener(EVT, handler);

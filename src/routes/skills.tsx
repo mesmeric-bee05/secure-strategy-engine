@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -106,38 +106,53 @@ function SkillsPage() {
 
   const personas = personasQ.data?.personas ?? [];
 
-  const STORAGE_KEY = "talentgraph:skills:draft";
-  const [text, setText] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    try {
-      return window.localStorage.getItem(STORAGE_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
-  const [persona, setPersona] = useState<string | undefined>(search.persona);
-
-  // Per-persona language map, e.g. { sarah: "sw-KE", james: "en-US" }.
-  // The "default" key is used when no persona is selected.
+  // ---------------------------------------------------------------------------
+  // Per-persona draft + language storage
+  // ---------------------------------------------------------------------------
+  // Drafts and language are scoped per persona so users can switch contexts
+  // without losing work. The "default" key holds work done before any persona
+  // is selected.
+  const DRAFT_MAP_KEY = "talentgraph:skills:draft-by-persona";
   const LANG_MAP_KEY = "talentgraph:skills:lang-by-persona";
-  function readLangMap(): Record<string, SpeechLang> {
+  const LEGACY_DRAFT_KEY = "talentgraph:skills:draft";
+  const LEGACY_LANG_KEY = "talentgraph:skills:lang";
+
+  function readJSONMap<T extends string>(
+    primaryKey: string,
+    legacyKey: string
+  ): Record<string, T> {
     if (typeof window === "undefined") return {};
     try {
-      const raw = window.localStorage.getItem(LANG_MAP_KEY);
-      if (!raw) {
-        // Migrate legacy single-value key, if any.
-        const legacy = window.localStorage.getItem("talentgraph:skills:lang");
-        return legacy ? { default: legacy as SpeechLang } : {};
-      }
-      return JSON.parse(raw) as Record<string, SpeechLang>;
+      const raw = window.localStorage.getItem(primaryKey);
+      if (raw) return JSON.parse(raw) as Record<string, T>;
+      const legacy = window.localStorage.getItem(legacyKey);
+      return legacy
+        ? ({ default: legacy as T } as Record<string, T>)
+        : {};
     } catch {
       return {};
     }
   }
-  const [langMap, setLangMap] = useState<Record<string, SpeechLang>>(() =>
-    readLangMap()
+
+  const [draftMap, setDraftMap] = useState<Record<string, string>>(() =>
+    readJSONMap<string>(DRAFT_MAP_KEY, LEGACY_DRAFT_KEY)
   );
+  const [langMap, setLangMap] = useState<Record<string, SpeechLang>>(() =>
+    readJSONMap<SpeechLang>(LANG_MAP_KEY, LEGACY_LANG_KEY)
+  );
+
+  const [persona, setPersona] = useState<string | undefined>(search.persona);
   const personaKey = persona ?? "default";
+
+  const text = draftMap[personaKey] ?? "";
+  function setText(next: string | ((prev: string) => string)) {
+    setDraftMap((prev) => {
+      const current = prev[personaKey] ?? "";
+      const value = typeof next === "function" ? next(current) : next;
+      return { ...prev, [personaKey]: value };
+    });
+  }
+
   const language: SpeechLang = langMap[personaKey] ?? "en-US";
   function setLanguage(next: SpeechLang) {
     setLangMap((prev) => {
@@ -156,17 +171,51 @@ function SkillsPage() {
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
 
-  // Debounced persistence for draft text — exposes status for the "Saved" pill.
-  const persist = useDebouncedLocalStorage(STORAGE_KEY, text, {
-    delayMs: 500,
-  });
+  // Track the "saved snapshot" of each persona's draft so we can warn when the
+  // user is about to switch personas with unsaved edits.
+  const savedSnapshotRef = useRef<Record<string, string>>({ ...draftMap });
 
-  // Persona quick-fill — only when no draft is restored.
+  // Debounced persistence for the entire draft map — exposes status for the
+  // "Saved" pill. We serialize on the whole map so a single quota error covers
+  // all personas.
+  const persist = useDebouncedLocalStorage(
+    DRAFT_MAP_KEY,
+    JSON.stringify(draftMap),
+    { delayMs: 500 }
+  );
+
+  // Once persistence settles, the current map IS the saved snapshot.
   useEffect(() => {
-    if (!persona) return;
-    const p = personas.find((x) => x.slug === persona);
-    if (p && !text) setText(p.prefill_text);
-  }, [persona, personas, text]);
+    if (persist.status === "saved" || persist.status === "idle") {
+      savedSnapshotRef.current = { ...draftMap };
+    }
+  }, [persist.status, draftMap]);
+
+  function hasUnsavedChanges(slug: string): boolean {
+    const current = draftMap[slug] ?? "";
+    const saved = savedSnapshotRef.current[slug] ?? "";
+    return current.trim() !== saved.trim();
+  }
+
+  function switchPersona(nextSlug: string) {
+    if (nextSlug === persona) return;
+    if (persona && hasUnsavedChanges(persona)) {
+      const ok =
+        typeof window === "undefined"
+          ? true
+          : window.confirm(
+              "You have unsaved changes in the current persona's draft. Switch anyway? Your draft will be kept and restored when you return."
+            );
+      if (!ok) return;
+    }
+    setPersona(nextSlug);
+    // Quick-fill only when the target persona has no existing draft yet.
+    const existing = (draftMap[nextSlug] ?? "").trim();
+    if (!existing) {
+      const p = personas.find((x) => x.slug === nextSlug);
+      if (p) setText(p.prefill_text);
+    }
+  }
 
   const extractFn = useServerFn(extractSkills);
   const mutation = useMutation({
@@ -247,10 +296,7 @@ function SkillsPage() {
                     <button
                       key={p.slug}
                       type="button"
-                      onClick={() => {
-                        setPersona(p.slug);
-                        setText(p.prefill_text);
-                      }}
+                      onClick={() => switchPersona(p.slug)}
                       className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
                         active
                           ? "border-gold bg-gold-soft text-gold"
@@ -595,41 +641,73 @@ function SavedIndicator({
   status: "idle" | "saving" | "saved" | "error";
   error: string | null;
 }) {
-  if (status === "idle") return null;
-  if (status === "saving") {
+  // Build a stable announcement message for screen readers. We always render
+  // the live region (even when idle/empty) so AT users hear every transition
+  // — visually it stays hidden when there's nothing to show.
+  const announcement =
+    status === "saving"
+      ? "Saving draft to local storage"
+      : status === "saved"
+        ? "Draft saved to local storage"
+        : status === "error"
+          ? `Could not save draft: ${error ?? "unknown error"}`
+          : "";
+
+  // Native title tooltip text — surfaces the exact error reason on hover.
+  const tooltip =
+    status === "error"
+      ? `Local storage save failed${error ? `: ${error}` : ""}. Your draft is kept in memory but won't survive a refresh.`
+      : status === "saving"
+        ? "Saving your draft to this browser's local storage"
+        : status === "saved"
+          ? "Draft saved to this browser's local storage"
+          : undefined;
+
+  if (status === "idle") {
+    // Keep an empty live region mounted so the next transition announces.
     return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="inline-flex items-center gap-1 text-[10.5px] text-tx-2"
-      >
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Saving…
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
       </span>
     );
   }
-  if (status === "saved") {
-    return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-gold"
-      >
-        <Check className="h-3 w-3" />
-        Saved
-      </span>
-    );
-  }
+
   return (
     <span
       role="status"
       aria-live="polite"
-      title={error ?? "Save failed"}
-      className="inline-flex items-center gap-1 text-[10.5px] text-coral"
+      aria-atomic="true"
+      title={tooltip}
+      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${
+        status === "error"
+          ? "text-coral"
+          : status === "saved"
+            ? "text-gold"
+            : "text-tx-2"
+      }`}
     >
-      <AlertTriangle className="h-3 w-3" />
-      {error ?? "Save failed"}
+      {status === "saving" && (
+        <>
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span aria-hidden="true">Saving…</span>
+        </>
+      )}
+      {status === "saved" && (
+        <>
+          <Check className="h-3 w-3" aria-hidden="true" />
+          <span aria-hidden="true">Saved</span>
+        </>
+      )}
+      {status === "error" && (
+        <>
+          <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+          <span aria-hidden="true">{error ?? "Save failed"}</span>
+        </>
+      )}
+      {/* Visually-hidden full message for screen readers. */}
+      <span className="sr-only">{announcement}</span>
     </span>
   );
 }
+
 
