@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -11,6 +11,9 @@ import {
   Share2,
   Check,
   AlertTriangle,
+  Download,
+  Upload,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -21,10 +24,25 @@ import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LastErrorPanel } from "@/components/LastErrorPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { useDebouncedLocalStorage } from "@/hooks/useDebouncedLocalStorage";
+import {
+  useDebouncedLocalStorage,
+  type PersistStatus,
+} from "@/hooks/useDebouncedLocalStorage";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
+import {
+  DRAFT_MAP_KEY,
+  LANG_MAP_KEY,
+  LEGACY_DRAFT_KEY,
+  LEGACY_LANG_KEY,
+  buildExport,
+  exportFilename,
+  hasUnsavedChanges as hasUnsavedChangesPure,
+  parseImport,
+  readJSONMap,
+  unsavedCount,
+} from "@/lib/skills-drafts";
 
 const SearchSchema = z.object({
   persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
@@ -111,28 +129,8 @@ function SkillsPage() {
   // ---------------------------------------------------------------------------
   // Drafts and language are scoped per persona so users can switch contexts
   // without losing work. The "default" key holds work done before any persona
-  // is selected.
-  const DRAFT_MAP_KEY = "talentgraph:skills:draft-by-persona";
-  const LANG_MAP_KEY = "talentgraph:skills:lang-by-persona";
-  const LEGACY_DRAFT_KEY = "talentgraph:skills:draft";
-  const LEGACY_LANG_KEY = "talentgraph:skills:lang";
-
-  function readJSONMap<T extends string>(
-    primaryKey: string,
-    legacyKey: string
-  ): Record<string, T> {
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = window.localStorage.getItem(primaryKey);
-      if (raw) return JSON.parse(raw) as Record<string, T>;
-      const legacy = window.localStorage.getItem(legacyKey);
-      return legacy
-        ? ({ default: legacy as T } as Record<string, T>)
-        : {};
-    } catch {
-      return {};
-    }
-  }
+  // is selected. Helpers live in @/lib/skills-drafts so they're unit-testable
+  // without mounting the route.
 
   const [draftMap, setDraftMap] = useState<Record<string, string>>(() =>
     readJSONMap<string>(DRAFT_MAP_KEY, LEGACY_DRAFT_KEY)
@@ -174,6 +172,10 @@ function SkillsPage() {
   // Track the "saved snapshot" of each persona's draft so we can warn when the
   // user is about to switch personas with unsaved edits.
   const savedSnapshotRef = useRef<Record<string, string>>({ ...draftMap });
+  // Mirror the snapshot into state so unsaved badges re-render in sync.
+  const [savedSnapshot, setSavedSnapshot] = useState<Record<string, string>>(
+    () => ({ ...draftMap })
+  );
 
   // Debounced persistence for the entire draft map — exposes status for the
   // "Saved" pill. We serialize on the whole map so a single quota error covers
@@ -188,14 +190,18 @@ function SkillsPage() {
   useEffect(() => {
     if (persist.status === "saved" || persist.status === "idle") {
       savedSnapshotRef.current = { ...draftMap };
+      setSavedSnapshot({ ...draftMap });
     }
   }, [persist.status, draftMap]);
 
   function hasUnsavedChanges(slug: string): boolean {
-    const current = draftMap[slug] ?? "";
-    const saved = savedSnapshotRef.current[slug] ?? "";
-    return current.trim() !== saved.trim();
+    return hasUnsavedChangesPure(draftMap, savedSnapshotRef.current, slug);
   }
+
+  const pendingCount = useMemo(
+    () => unsavedCount(draftMap, savedSnapshot),
+    [draftMap, savedSnapshot]
+  );
 
   function switchPersona(nextSlug: string) {
     if (nextSlug === persona) return;
@@ -255,6 +261,143 @@ function SkillsPage() {
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
 
+  // ---------------------------------------------------------------------------
+  // Keyboard navigation for persona chips (radiogroup pattern)
+  // ---------------------------------------------------------------------------
+  const personaBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const focusedPersonaIdx = useRef<number>(0);
+
+  function focusPersonaAt(idx: number) {
+    const total = personas.length;
+    if (total === 0) return;
+    const wrapped = ((idx % total) + total) % total;
+    focusedPersonaIdx.current = wrapped;
+    requestAnimationFrame(() => {
+      personaBtnRefs.current[wrapped]?.focus();
+    });
+  }
+
+  function onPersonaKeyDown(
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    idx: number,
+    slug: string
+  ) {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        focusPersonaAt(idx + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        focusPersonaAt(idx - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusPersonaAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusPersonaAt(personas.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        switchPersona(slug);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Export / Import drafts
+  // ---------------------------------------------------------------------------
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExport = useCallback(() => {
+    try {
+      const payload = buildExport({ drafts: draftMap, languages: langMap });
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const n = Object.keys(payload.drafts).length;
+      toast.success(`Exported ${n} draft${n === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
+    }
+  }, [draftMap, langMap]);
+
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      try {
+        const raw = await file.text();
+        const json: unknown = JSON.parse(raw);
+        const parsed = parseImport(json);
+        const incomingSlugs = Object.keys(parsed.drafts);
+        const overlap = incomingSlugs.filter(
+          (s) => (draftMap[s] ?? "").trim().length > 0
+        );
+        const ok =
+          typeof window === "undefined"
+            ? true
+            : window.confirm(
+                `Import ${incomingSlugs.length} draft${
+                  incomingSlugs.length === 1 ? "" : "s"
+                }? ${
+                  overlap.length > 0
+                    ? `${overlap.length} will overwrite existing drafts (${overlap.join(", ")}).`
+                    : "No existing drafts will be overwritten."
+                }`
+              );
+        if (!ok) return;
+        setDraftMap((prev) => ({ ...prev, ...parsed.drafts }));
+        setLangMap((prev) => {
+          const updated = { ...prev, ...parsed.languages };
+          if (typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(
+                LANG_MAP_KEY,
+                JSON.stringify(updated)
+              );
+            } catch {
+              /* noop */
+            }
+          }
+          return updated;
+        });
+        toast.success(
+          `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}` +
+            (parsed.droppedLanguages.length
+              ? ` (skipped ${parsed.droppedLanguages.length} unknown language${parsed.droppedLanguages.length === 1 ? "" : "s"})`
+              : "")
+        );
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          const issue = e.issues[0];
+          toast.error(
+            `Invalid backup file${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}`
+          );
+        } else {
+          toast.error(
+            e instanceof Error ? e.message : "Could not import file"
+          );
+        }
+      }
+    },
+    [draftMap]
+  );
+
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">
@@ -271,43 +414,137 @@ function SkillsPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* INPUT */}
           <div>
-            <div className="mb-1 flex items-center justify-between gap-3">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[14px] font-semibold text-tx-0">
                 Describe your skills & experience
               </h2>
-              <SavedIndicator
-                status={persist.status}
-                error={persist.error}
-              />
+              <div className="flex items-center gap-2">
+                <SavedIndicator status={persist.status} error={persist.error} />
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  aria-label="Export all persona drafts as JSON"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <Download className="h-3 w-3" aria-hidden="true" />
+                  Export
+                </button>
+                <button
+                  type="button"
+                  onClick={() => importInputRef.current?.click()}
+                  aria-label="Import persona drafts from a JSON backup file"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <Upload className="h-3 w-3" aria-hidden="true" />
+                  Import
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleImportFile(f);
+                    // Reset so picking the same file twice still fires onChange.
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </div>
             <p className="mb-3 text-[11.5px] text-tx-2">
               Include informal work, self-taught skills, and community roles.
             </p>
 
-            {/* Persona quick-fill */}
+            {/* Persona quick-fill — keyboard-navigable radiogroup */}
             <div className="mb-3">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-tx-2">
-                Quick-fill with persona
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-tx-2">
+                  Quick-fill with persona
+                </p>
+                {pendingCount > 0 && (
+                  <span
+                    className="rounded-full border border-coral/40 bg-coral-soft/30 px-2 py-0.5 text-[9.5px] font-semibold text-coral"
+                    aria-live="polite"
+                  >
+                    {pendingCount} unsaved draft{pendingCount === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <p id="persona-instructions" className="sr-only">
+                Use left and right arrow keys to navigate personas, Enter or
+                Space to select. Home and End jump to the first or last
+                persona.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {personas.map((p) => {
+              <div
+                role="radiogroup"
+                aria-label="Choose a persona to quick-fill"
+                aria-describedby="persona-instructions"
+                className="flex flex-wrap gap-2"
+              >
+                {personas.map((p, idx) => {
                   const active = persona === p.slug;
+                  const draft = (draftMap[p.slug] ?? "").trim();
+                  const unsaved = hasUnsavedChanges(p.slug);
+                  const hasDraft = draft.length > 0;
+                  const status: "none" | "saved" | "unsaved" = !hasDraft
+                    ? "none"
+                    : unsaved
+                      ? "unsaved"
+                      : "saved";
+                  const tabIndex =
+                    active || (!persona && idx === 0) ? 0 : -1;
                   return (
                     <button
                       key={p.slug}
+                      ref={(el) => {
+                        personaBtnRefs.current[idx] = el;
+                      }}
                       type="button"
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={tabIndex}
                       onClick={() => switchPersona(p.slug)}
-                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                      onKeyDown={(e) => onPersonaKeyDown(e, idx, p.slug)}
+                      onFocus={() => {
+                        focusedPersonaIdx.current = idx;
+                      }}
+                      aria-label={`${p.display_name} — ${
+                        status === "unsaved"
+                          ? "unsaved changes"
+                          : status === "saved"
+                            ? "saved draft"
+                            : "no draft yet"
+                      }${active ? ", currently selected" : ""}`}
+                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
                         active
                           ? "border-gold bg-gold-soft text-gold"
                           : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
                       }`}
                     >
-                      <span>{p.emoji}</span>
+                      <span aria-hidden="true">{p.emoji}</span>
                       <span>{p.display_name}</span>
                       <span className="text-[10px] text-tx-2">
                         · {p.occupation}
                       </span>
+                      {status !== "none" && (
+                        <span
+                          aria-hidden="true"
+                          title={
+                            status === "unsaved"
+                              ? "Unsaved changes"
+                              : "Saved to local storage"
+                          }
+                          className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                            status === "unsaved"
+                              ? "bg-coral-soft/40 text-coral"
+                              : "bg-bg-4 text-gold"
+                          }`}
+                        >
+                          {status === "unsaved" ? "●" : <Check className="h-2.5 w-2.5" />}
+                          {status === "unsaved" ? "Unsaved" : "Saved"}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -638,33 +875,32 @@ function SavedIndicator({
   status,
   error,
 }: {
-  status: "idle" | "saving" | "saved" | "error";
+  status: PersistStatus;
   error: string | null;
 }) {
-  // Build a stable announcement message for screen readers. We always render
-  // the live region (even when idle/empty) so AT users hear every transition
-  // — visually it stays hidden when there's nothing to show.
   const announcement =
     status === "saving"
       ? "Saving draft to local storage"
-      : status === "saved"
-        ? "Draft saved to local storage"
-        : status === "error"
-          ? `Could not save draft: ${error ?? "unknown error"}`
-          : "";
+      : status === "retrying"
+        ? "Retrying save after a storage error"
+        : status === "saved"
+          ? "Draft saved to local storage"
+          : status === "error"
+            ? `Could not save draft: ${error ?? "unknown error"}`
+            : "";
 
-  // Native title tooltip text — surfaces the exact error reason on hover.
   const tooltip =
     status === "error"
       ? `Local storage save failed${error ? `: ${error}` : ""}. Your draft is kept in memory but won't survive a refresh.`
-      : status === "saving"
-        ? "Saving your draft to this browser's local storage"
-        : status === "saved"
-          ? "Draft saved to this browser's local storage"
-          : undefined;
+      : status === "retrying"
+        ? "Auto-retrying after a quota error — keep deleting content to free space"
+        : status === "saving"
+          ? "Saving your draft to this browser's local storage"
+          : status === "saved"
+            ? "Draft saved to this browser's local storage"
+            : undefined;
 
   if (status === "idle") {
-    // Keep an empty live region mounted so the next transition announces.
     return (
       <span aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
@@ -672,24 +908,33 @@ function SavedIndicator({
     );
   }
 
+  const colorClass =
+    status === "error"
+      ? "text-coral"
+      : status === "saved"
+        ? "text-gold"
+        : status === "retrying"
+          ? "text-coral"
+          : "text-tx-2";
+
   return (
     <span
       role="status"
       aria-live="polite"
       aria-atomic="true"
       title={tooltip}
-      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${
-        status === "error"
-          ? "text-coral"
-          : status === "saved"
-            ? "text-gold"
-            : "text-tx-2"
-      }`}
+      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${colorClass}`}
     >
       {status === "saving" && (
         <>
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
           <span aria-hidden="true">Saving…</span>
+        </>
+      )}
+      {status === "retrying" && (
+        <>
+          <RotateCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span aria-hidden="true">Retrying…</span>
         </>
       )}
       {status === "saved" && (
@@ -704,10 +949,10 @@ function SavedIndicator({
           <span aria-hidden="true">{error ?? "Save failed"}</span>
         </>
       )}
-      {/* Visually-hidden full message for screen readers. */}
       <span className="sr-only">{announcement}</span>
     </span>
   );
 }
+
 
 
