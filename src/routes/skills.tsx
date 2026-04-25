@@ -414,43 +414,137 @@ function SkillsPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* INPUT */}
           <div>
-            <div className="mb-1 flex items-center justify-between gap-3">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-[14px] font-semibold text-tx-0">
                 Describe your skills & experience
               </h2>
-              <SavedIndicator
-                status={persist.status}
-                error={persist.error}
-              />
+              <div className="flex items-center gap-2">
+                <SavedIndicator status={persist.status} error={persist.error} />
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  aria-label="Export all persona drafts as JSON"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <Download className="h-3 w-3" aria-hidden="true" />
+                  Export
+                </button>
+                <button
+                  type="button"
+                  onClick={() => importInputRef.current?.click()}
+                  aria-label="Import persona drafts from a JSON backup file"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <Upload className="h-3 w-3" aria-hidden="true" />
+                  Import
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleImportFile(f);
+                    // Reset so picking the same file twice still fires onChange.
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </div>
             <p className="mb-3 text-[11.5px] text-tx-2">
               Include informal work, self-taught skills, and community roles.
             </p>
 
-            {/* Persona quick-fill */}
+            {/* Persona quick-fill — keyboard-navigable radiogroup */}
             <div className="mb-3">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-tx-2">
-                Quick-fill with persona
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-tx-2">
+                  Quick-fill with persona
+                </p>
+                {pendingCount > 0 && (
+                  <span
+                    className="rounded-full border border-coral/40 bg-coral-soft/30 px-2 py-0.5 text-[9.5px] font-semibold text-coral"
+                    aria-live="polite"
+                  >
+                    {pendingCount} unsaved draft{pendingCount === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <p id="persona-instructions" className="sr-only">
+                Use left and right arrow keys to navigate personas, Enter or
+                Space to select. Home and End jump to the first or last
+                persona.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {personas.map((p) => {
+              <div
+                role="radiogroup"
+                aria-label="Choose a persona to quick-fill"
+                aria-describedby="persona-instructions"
+                className="flex flex-wrap gap-2"
+              >
+                {personas.map((p, idx) => {
                   const active = persona === p.slug;
+                  const draft = (draftMap[p.slug] ?? "").trim();
+                  const unsaved = hasUnsavedChanges(p.slug);
+                  const hasDraft = draft.length > 0;
+                  const status: "none" | "saved" | "unsaved" = !hasDraft
+                    ? "none"
+                    : unsaved
+                      ? "unsaved"
+                      : "saved";
+                  const tabIndex =
+                    active || (!persona && idx === 0) ? 0 : -1;
                   return (
                     <button
                       key={p.slug}
+                      ref={(el) => {
+                        personaBtnRefs.current[idx] = el;
+                      }}
                       type="button"
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={tabIndex}
                       onClick={() => switchPersona(p.slug)}
-                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                      onKeyDown={(e) => onPersonaKeyDown(e, idx, p.slug)}
+                      onFocus={() => {
+                        focusedPersonaIdx.current = idx;
+                      }}
+                      aria-label={`${p.display_name} — ${
+                        status === "unsaved"
+                          ? "unsaved changes"
+                          : status === "saved"
+                            ? "saved draft"
+                            : "no draft yet"
+                      }${active ? ", currently selected" : ""}`}
+                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
                         active
                           ? "border-gold bg-gold-soft text-gold"
                           : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
                       }`}
                     >
-                      <span>{p.emoji}</span>
+                      <span aria-hidden="true">{p.emoji}</span>
                       <span>{p.display_name}</span>
                       <span className="text-[10px] text-tx-2">
                         · {p.occupation}
                       </span>
+                      {status !== "none" && (
+                        <span
+                          aria-hidden="true"
+                          title={
+                            status === "unsaved"
+                              ? "Unsaved changes"
+                              : "Saved to local storage"
+                          }
+                          className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                            status === "unsaved"
+                              ? "bg-coral-soft/40 text-coral"
+                              : "bg-bg-4 text-gold"
+                          }`}
+                        >
+                          {status === "unsaved" ? "●" : <Check className="h-2.5 w-2.5" />}
+                          {status === "unsaved" ? "Unsaved" : "Saved"}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
