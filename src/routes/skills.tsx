@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Mic, MicOff, Sparkles, Loader2, QrCode, Share2 } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Sparkles,
+  Loader2,
+  QrCode,
+  Share2,
+  Check,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -10,7 +19,9 @@ import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { LastErrorPanel } from "@/components/LastErrorPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useDebouncedLocalStorage } from "@/hooks/useDebouncedLocalStorage";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
