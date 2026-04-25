@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -11,6 +11,9 @@ import {
   Share2,
   Check,
   AlertTriangle,
+  Download,
+  Upload,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -21,10 +24,25 @@ import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LastErrorPanel } from "@/components/LastErrorPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { useDebouncedLocalStorage } from "@/hooks/useDebouncedLocalStorage";
+import {
+  useDebouncedLocalStorage,
+  type PersistStatus,
+} from "@/hooks/useDebouncedLocalStorage";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
+import {
+  DRAFT_MAP_KEY,
+  LANG_MAP_KEY,
+  LEGACY_DRAFT_KEY,
+  LEGACY_LANG_KEY,
+  buildExport,
+  exportFilename,
+  hasUnsavedChanges as hasUnsavedChangesPure,
+  parseImport,
+  readJSONMap,
+  unsavedCount,
+} from "@/lib/skills-drafts";
 
 const SearchSchema = z.object({
   persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
