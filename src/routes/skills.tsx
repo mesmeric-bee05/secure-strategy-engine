@@ -613,7 +613,7 @@ function SavedIndicator({
       <span
         role="status"
         aria-live="polite"
-        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-mint"
+        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-gold"
       >
         <Check className="h-3 w-3" />
         Saved
