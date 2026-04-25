@@ -30,13 +30,19 @@ export function RouteErrorBoundary({
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error(`[RouteError:${module}]`, error);
+    const route =
+      typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : "ssr";
+    recordLastError({
+      module,
+      route,
+      message: error.message || "unknown error",
+    });
     void logError({
       data: {
         module,
-        route:
-          typeof window !== "undefined"
-            ? window.location.pathname + window.location.search
-            : "ssr",
+        route,
         message: error.message || "unknown error",
         stack: error.stack?.slice(0, 4000),
       },
