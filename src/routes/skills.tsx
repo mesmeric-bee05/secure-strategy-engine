@@ -258,12 +258,25 @@ function SkillsPage() {
                   {voice.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
                   {voice.listening ? "Stop" : "Speak"}
                 </button>
+                <select
+                  aria-label="Recognition language"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as SpeechLang)}
+                  disabled={voice.listening}
+                  className="rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 outline-none focus:border-gold-glow disabled:opacity-50"
+                >
+                  {SPEECH_LANGS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
                 <span className="text-[10px] text-tx-2">
                   {voice.error
                     ? voice.error
                     : voice.supported
                       ? voice.listening
-                        ? "Listening…"
+                        ? `Listening (${language})…`
                         : "Web Speech API"
                       : "Voice unavailable — please type instead"}
                 </span>
