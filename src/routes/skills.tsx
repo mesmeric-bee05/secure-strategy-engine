@@ -176,6 +176,7 @@ function SkillsPage() {
 
   const voice = useSpeechRecognition({
     onText: (t) => setText((prev) => prev + (prev ? " " : "") + t),
+    lang: language,
   });
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
