@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Mic, MicOff, Sparkles, Loader2, QrCode, Share2 } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Sparkles,
+  Loader2,
+  QrCode,
+  Share2,
+  Check,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -10,7 +19,9 @@ import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { LastErrorPanel } from "@/components/LastErrorPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useDebouncedLocalStorage } from "@/hooks/useDebouncedLocalStorage";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
@@ -105,36 +116,50 @@ function SkillsPage() {
     }
   });
   const [persona, setPersona] = useState<string | undefined>(search.persona);
-  const [language, setLanguage] = useState<SpeechLang>(() => {
-    if (typeof window === "undefined") return "en-US";
+
+  // Per-persona language map, e.g. { sarah: "sw-KE", james: "en-US" }.
+  // The "default" key is used when no persona is selected.
+  const LANG_MAP_KEY = "talentgraph:skills:lang-by-persona";
+  function readLangMap(): Record<string, SpeechLang> {
+    if (typeof window === "undefined") return {};
     try {
-      const v = window.localStorage.getItem("talentgraph:skills:lang");
-      return (v as SpeechLang) ?? "en-US";
+      const raw = window.localStorage.getItem(LANG_MAP_KEY);
+      if (!raw) {
+        // Migrate legacy single-value key, if any.
+        const legacy = window.localStorage.getItem("talentgraph:skills:lang");
+        return legacy ? { default: legacy as SpeechLang } : {};
+      }
+      return JSON.parse(raw) as Record<string, SpeechLang>;
     } catch {
-      return "en-US";
+      return {};
     }
-  });
+  }
+  const [langMap, setLangMap] = useState<Record<string, SpeechLang>>(() =>
+    readLangMap()
+  );
+  const personaKey = persona ?? "default";
+  const language: SpeechLang = langMap[personaKey] ?? "en-US";
+  function setLanguage(next: SpeechLang) {
+    setLangMap((prev) => {
+      const updated = { ...prev, [personaKey]: next };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(LANG_MAP_KEY, JSON.stringify(updated));
+        } catch {
+          /* noop */
+        }
+      }
+      return updated;
+    });
+  }
+
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
 
-  // Persist draft text to localStorage (debounced via React's batch updates).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, text);
-    } catch {
-      /* quota exceeded — ignore */
-    }
-  }, [text]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem("talentgraph:skills:lang", language);
-    } catch {
-      /* noop */
-    }
-  }, [language]);
+  // Debounced persistence for draft text — exposes status for the "Saved" pill.
+  const persist = useDebouncedLocalStorage(STORAGE_KEY, text, {
+    delayMs: 500,
+  });
 
   // Persona quick-fill — only when no draft is restored.
   useEffect(() => {
@@ -192,12 +217,20 @@ function SkillsPage() {
           Map your skills to the global economy
         </PageTitle>
 
+        <LastErrorPanel moduleFilter="Skills" />
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* INPUT */}
           <div>
-            <h2 className="mb-1 font-display text-[14px] font-semibold text-tx-0">
-              Describe your skills & experience
-            </h2>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 className="font-display text-[14px] font-semibold text-tx-0">
+                Describe your skills & experience
+              </h2>
+              <SavedIndicator
+                status={persist.status}
+                error={persist.error}
+              />
+            </div>
             <p className="mb-3 text-[11.5px] text-tx-2">
               Include informal work, self-taught skills, and community roles.
             </p>
@@ -551,3 +584,52 @@ function fakeHash(input: string): string {
   }
   return h.toString(16).padStart(16, "0").repeat(4).slice(0, 64);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Saved indicator                                                            */
+/* -------------------------------------------------------------------------- */
+function SavedIndicator({
+  status,
+  error,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+  error: string | null;
+}) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="inline-flex items-center gap-1 text-[10.5px] text-tx-2"
+      >
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-gold"
+      >
+        <Check className="h-3 w-3" />
+        Saved
+      </span>
+    );
+  }
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      title={error ?? "Save failed"}
+      className="inline-flex items-center gap-1 text-[10.5px] text-coral"
+    >
+      <AlertTriangle className="h-3 w-3" />
+      {error ?? "Save failed"}
+    </span>
+  );
+}
+
