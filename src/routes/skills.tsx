@@ -875,33 +875,32 @@ function SavedIndicator({
   status,
   error,
 }: {
-  status: "idle" | "saving" | "saved" | "error";
+  status: PersistStatus;
   error: string | null;
 }) {
-  // Build a stable announcement message for screen readers. We always render
-  // the live region (even when idle/empty) so AT users hear every transition
-  // — visually it stays hidden when there's nothing to show.
   const announcement =
     status === "saving"
       ? "Saving draft to local storage"
-      : status === "saved"
-        ? "Draft saved to local storage"
-        : status === "error"
-          ? `Could not save draft: ${error ?? "unknown error"}`
-          : "";
+      : status === "retrying"
+        ? "Retrying save after a storage error"
+        : status === "saved"
+          ? "Draft saved to local storage"
+          : status === "error"
+            ? `Could not save draft: ${error ?? "unknown error"}`
+            : "";
 
-  // Native title tooltip text — surfaces the exact error reason on hover.
   const tooltip =
     status === "error"
       ? `Local storage save failed${error ? `: ${error}` : ""}. Your draft is kept in memory but won't survive a refresh.`
-      : status === "saving"
-        ? "Saving your draft to this browser's local storage"
-        : status === "saved"
-          ? "Draft saved to this browser's local storage"
-          : undefined;
+      : status === "retrying"
+        ? "Auto-retrying after a quota error — keep deleting content to free space"
+        : status === "saving"
+          ? "Saving your draft to this browser's local storage"
+          : status === "saved"
+            ? "Draft saved to this browser's local storage"
+            : undefined;
 
   if (status === "idle") {
-    // Keep an empty live region mounted so the next transition announces.
     return (
       <span aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
@@ -909,24 +908,33 @@ function SavedIndicator({
     );
   }
 
+  const colorClass =
+    status === "error"
+      ? "text-coral"
+      : status === "saved"
+        ? "text-gold"
+        : status === "retrying"
+          ? "text-coral"
+          : "text-tx-2";
+
   return (
     <span
       role="status"
       aria-live="polite"
       aria-atomic="true"
       title={tooltip}
-      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${
-        status === "error"
-          ? "text-coral"
-          : status === "saved"
-            ? "text-gold"
-            : "text-tx-2"
-      }`}
+      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${colorClass}`}
     >
       {status === "saving" && (
         <>
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
           <span aria-hidden="true">Saving…</span>
+        </>
+      )}
+      {status === "retrying" && (
+        <>
+          <RotateCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span aria-hidden="true">Retrying…</span>
         </>
       )}
       {status === "saved" && (
@@ -941,10 +949,10 @@ function SavedIndicator({
           <span aria-hidden="true">{error ?? "Save failed"}</span>
         </>
       )}
-      {/* Visually-hidden full message for screen readers. */}
       <span className="sr-only">{announcement}</span>
     </span>
   );
 }
+
 
 
