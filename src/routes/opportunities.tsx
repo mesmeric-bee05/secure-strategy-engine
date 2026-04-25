@@ -7,6 +7,7 @@ import { MapPin, Users, Briefcase, BarChart3 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel, CitationChip } from "@/components/CitationsPanel";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import {
   listCountries,
   listOpportunities,
@@ -15,17 +16,22 @@ import {
 } from "@/server/opportunities.functions";
 import { getCitations } from "@/server/citations.functions";
 
-const SearchSchema = z.object({
-  country: z
-    .enum(["KE", "GH", "NG", "ZA", "RW"])
-    .optional()
-    .catch(undefined),
+export const COUNTRY_CODES = ["KE", "GH", "NG", "ZA", "RW"] as const;
+export type CountryCode = (typeof COUNTRY_CODES)[number];
+export const PERSONA_SLUGS = ["sarah", "james", "amara", "kwame"] as const;
+export type PersonaSlug = (typeof PERSONA_SLUGS)[number];
+
+export const SearchSchema = z.object({
+  country: z.enum(COUNTRY_CODES).optional().catch(undefined),
   view: z.enum(["youth", "policymaker"]).default("youth").catch("youth"),
-  persona: z
-    .enum(["sarah", "james", "amara", "kwame"])
-    .optional()
-    .catch(undefined),
+  persona: z.enum(PERSONA_SLUGS).optional().catch(undefined),
 });
+export type OpportunitiesSearch = z.infer<typeof SearchSchema>;
+
+/** Strongly-typed deps surfaced to the loader. */
+export interface OpportunitiesLoaderDeps {
+  country: CountryCode | undefined;
+}
 
 export const Route = createFileRoute("/opportunities")({
   validateSearch: SearchSchema,
@@ -51,20 +57,32 @@ export const Route = createFileRoute("/opportunities")({
       },
     ],
   }),
-  loaderDeps: ({ search }) => ({ country: search.country }),
+  loaderDeps: ({ search }): OpportunitiesLoaderDeps => ({
+    country: search.country,
+  }),
   loader: ({ context, deps }) => {
+    const { country } = deps;
     void context.queryClient.prefetchQuery({
       queryKey: ["countries"],
       queryFn: () => listCountries(),
     });
     void context.queryClient.prefetchQuery({
-      queryKey: ["opportunities", deps.country ?? null],
+      queryKey: ["opportunities", country ?? null],
       queryFn: () =>
         listOpportunities({
-          data: { countryCode: deps.country, limit: 24 },
+          data: { countryCode: country, limit: 24 },
         }),
     });
   },
+  errorComponent: ({ error, reset }) => (
+    <AppShell>
+      <RouteErrorBoundary
+        error={error}
+        reset={reset}
+        module="Opportunity Dashboard"
+      />
+    </AppShell>
+  ),
   component: OpportunitiesPage,
 });
 

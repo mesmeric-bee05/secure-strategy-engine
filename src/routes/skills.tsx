@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Mic, MicOff, Sparkles, Loader2, QrCode, Share2 } from "lucide-react";
@@ -9,6 +9,8 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
@@ -51,6 +53,15 @@ export const Route = createFileRoute("/skills")({
       queryFn: () => getCitations({ data: {} }),
     });
   },
+  errorComponent: ({ error, reset }) => (
+    <AppShell>
+      <RouteErrorBoundary
+        error={error}
+        reset={reset}
+        module="Skills Signal Engine"
+      />
+    </AppShell>
+  ),
   component: SkillsPage,
 });
 
@@ -113,7 +124,9 @@ function SkillsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Extraction failed"),
   });
 
-  const voice = useVoiceCapture({ onText: (t) => setText((prev) => prev + (prev ? " " : "") + t) });
+  const voice = useSpeechRecognition({
+    onText: (t) => setText((prev) => prev + (prev ? " " : "") + t),
+  });
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
 
@@ -195,7 +208,13 @@ function SkillsPage() {
                   {voice.listening ? "Stop" : "Speak"}
                 </button>
                 <span className="text-[10px] text-tx-2">
-                  {voice.supported ? voice.listening ? "Listening…" : "Web Speech API" : "Voice unavailable"}
+                  {voice.error
+                    ? voice.error
+                    : voice.supported
+                      ? voice.listening
+                        ? "Listening…"
+                        : "Web Speech API"
+                      : "Voice unavailable — please type instead"}
                 </span>
                 <button
                   type="button"
@@ -258,54 +277,6 @@ function SkillsPage() {
       </div>
     </AppShell>
   );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Voice capture (Web Speech API)                                            */
-/* -------------------------------------------------------------------------- */
-function useVoiceCapture({ onText }: { onText: (t: string) => void }) {
-  const [supported, setSupported] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<unknown>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const w = window as unknown as {
-      SpeechRecognition?: new () => unknown;
-      webkitSpeechRecognition?: new () => unknown;
-    };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    setSupported(!!Ctor);
-  }, []);
-
-  function toggle() {
-    if (!supported) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-    if (listening) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (recRef.current as any)?.stop?.();
-      setListening(false);
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r: any = new Ctor();
-    r.continuous = true;
-    r.interimResults = false;
-    r.lang = "en-US";
-    r.onresult = (e: { results: ArrayLike<{ 0: { transcript: string } }> }) => {
-      const last = e.results[e.results.length - 1];
-      if (last) onText(last[0].transcript);
-    };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
-    r.start();
-    recRef.current = r;
-    setListening(true);
-  }
-  return { supported, listening, toggle };
 }
 
 /* -------------------------------------------------------------------------- */
