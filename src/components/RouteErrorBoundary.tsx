@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { logClientError } from "@/server/audit.functions";
+import { recordLastError } from "@/lib/last-error";
 
 export interface RouteErrorBoundaryProps {
   error: Error;
