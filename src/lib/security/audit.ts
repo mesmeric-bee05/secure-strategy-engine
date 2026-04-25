@@ -36,13 +36,13 @@ export async function recordAudit(ev: AuditEvent): Promise<void> {
     const ipHash = ev.ip ? await sha256Hex(ev.ip) : null;
     const uaHash = ev.userAgent ? await sha256Hex(ev.userAgent) : null;
     await admin.from("audit_log").insert({
-      actor_id: ev.actorId ?? null,
       action: ev.action,
+      actor_id: ev.actorId ?? null,
       resource_type: ev.resourceType ?? null,
       resource_id: ev.resourceId ?? null,
       ip_hash: ipHash,
       user_agent_hash: uaHash,
-      metadata: ev.metadata ?? null,
+      metadata: (ev.metadata ?? null) as never,
     });
   } catch (e) {
     // Never let audit failures break the request path.
