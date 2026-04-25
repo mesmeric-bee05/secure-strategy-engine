@@ -26,9 +26,9 @@ const toastError = vi.fn();
 const toastLoading = vi.fn(() => "toast-id");
 vi.mock("sonner", () => ({
   toast: {
-    success: (...a: unknown[]) => toastSuccess(...a),
-    error: (...a: unknown[]) => toastError(...a),
-    loading: (...a: unknown[]) => toastLoading(...a),
+    success: (message: string, opts?: unknown) => toastSuccess(message, opts),
+    error: (message: string, opts?: unknown) => toastError(message, opts),
+    loading: (message: string, opts?: unknown) => toastLoading(message, opts),
   },
 }));
 
