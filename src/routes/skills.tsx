@@ -124,7 +124,9 @@ function SkillsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Extraction failed"),
   });
 
-  const voice = useVoiceCapture({ onText: (t) => setText((prev) => prev + (prev ? " " : "") + t) });
+  const voice = useSpeechRecognition({
+    onText: (t) => setText((prev) => prev + (prev ? " " : "") + t),
+  });
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
 
