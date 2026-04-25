@@ -129,28 +129,8 @@ function SkillsPage() {
   // ---------------------------------------------------------------------------
   // Drafts and language are scoped per persona so users can switch contexts
   // without losing work. The "default" key holds work done before any persona
-  // is selected.
-  const DRAFT_MAP_KEY = "talentgraph:skills:draft-by-persona";
-  const LANG_MAP_KEY = "talentgraph:skills:lang-by-persona";
-  const LEGACY_DRAFT_KEY = "talentgraph:skills:draft";
-  const LEGACY_LANG_KEY = "talentgraph:skills:lang";
-
-  function readJSONMap<T extends string>(
-    primaryKey: string,
-    legacyKey: string
-  ): Record<string, T> {
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = window.localStorage.getItem(primaryKey);
-      if (raw) return JSON.parse(raw) as Record<string, T>;
-      const legacy = window.localStorage.getItem(legacyKey);
-      return legacy
-        ? ({ default: legacy as T } as Record<string, T>)
-        : {};
-    } catch {
-      return {};
-    }
-  }
+  // is selected. Helpers live in @/lib/skills-drafts so they're unit-testable
+  // without mounting the route.
 
   const [draftMap, setDraftMap] = useState<Record<string, string>>(() =>
     readJSONMap<string>(DRAFT_MAP_KEY, LEGACY_DRAFT_KEY)
@@ -192,6 +172,10 @@ function SkillsPage() {
   // Track the "saved snapshot" of each persona's draft so we can warn when the
   // user is about to switch personas with unsaved edits.
   const savedSnapshotRef = useRef<Record<string, string>>({ ...draftMap });
+  // Mirror the snapshot into state so unsaved badges re-render in sync.
+  const [savedSnapshot, setSavedSnapshot] = useState<Record<string, string>>(
+    () => ({ ...draftMap })
+  );
 
   // Debounced persistence for the entire draft map — exposes status for the
   // "Saved" pill. We serialize on the whole map so a single quota error covers
@@ -206,14 +190,18 @@ function SkillsPage() {
   useEffect(() => {
     if (persist.status === "saved" || persist.status === "idle") {
       savedSnapshotRef.current = { ...draftMap };
+      setSavedSnapshot({ ...draftMap });
     }
   }, [persist.status, draftMap]);
 
   function hasUnsavedChanges(slug: string): boolean {
-    const current = draftMap[slug] ?? "";
-    const saved = savedSnapshotRef.current[slug] ?? "";
-    return current.trim() !== saved.trim();
+    return hasUnsavedChangesPure(draftMap, savedSnapshotRef.current, slug);
   }
+
+  const pendingCount = useMemo(
+    () => unsavedCount(draftMap, savedSnapshot),
+    [draftMap, savedSnapshot]
+  );
 
   function switchPersona(nextSlug: string) {
     if (nextSlug === persona) return;
