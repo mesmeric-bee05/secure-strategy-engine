@@ -21,9 +21,11 @@ vi.mock("@tanstack/react-start", () => ({
   useServerFn: () => logErrorImpl,
 }));
 
-const toastSuccess = vi.fn();
-const toastError = vi.fn();
-const toastLoading = vi.fn(() => "toast-id");
+const toastSuccess = vi.fn<(message: string, opts?: unknown) => void>();
+const toastError = vi.fn<(message: string, opts?: unknown) => void>();
+const toastLoading = vi.fn<(message: string, opts?: unknown) => string>(
+  () => "toast-id"
+);
 vi.mock("sonner", () => ({
   toast: {
     success: (message: string, opts?: unknown) => toastSuccess(message, opts),
