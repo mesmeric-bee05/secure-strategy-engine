@@ -674,6 +674,40 @@ export type Database = {
         }
         Returns: boolean
       }
+      issue_credential: {
+        Args: {
+          _payload: Json
+          _payload_hash: string
+          _platform_signature: string
+          _signing_key_id: string
+          _skill_id: string
+          _user_id: string
+        }
+        Returns: string
+      }
+      rl_check: {
+        Args: {
+          _bucket: string
+          _identifier: string
+          _limit: number
+          _window_seconds: number
+        }
+        Returns: boolean
+      }
+      submit_attestation: {
+        Args: {
+          _attestation_text: string
+          _attester_email: string
+          _attester_name: string
+          _attester_pubkey: string
+          _ecdsa_signature: string
+          _payload_hash: string
+          _relationship: Database["public"]["Enums"]["attester_relationship"]
+          _skill_id: string
+          _trust_weight: number
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "attestor" | "user"
