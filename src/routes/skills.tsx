@@ -116,36 +116,50 @@ function SkillsPage() {
     }
   });
   const [persona, setPersona] = useState<string | undefined>(search.persona);
-  const [language, setLanguage] = useState<SpeechLang>(() => {
-    if (typeof window === "undefined") return "en-US";
+
+  // Per-persona language map, e.g. { sarah: "sw-KE", james: "en-US" }.
+  // The "default" key is used when no persona is selected.
+  const LANG_MAP_KEY = "talentgraph:skills:lang-by-persona";
+  function readLangMap(): Record<string, SpeechLang> {
+    if (typeof window === "undefined") return {};
     try {
-      const v = window.localStorage.getItem("talentgraph:skills:lang");
-      return (v as SpeechLang) ?? "en-US";
+      const raw = window.localStorage.getItem(LANG_MAP_KEY);
+      if (!raw) {
+        // Migrate legacy single-value key, if any.
+        const legacy = window.localStorage.getItem("talentgraph:skills:lang");
+        return legacy ? { default: legacy as SpeechLang } : {};
+      }
+      return JSON.parse(raw) as Record<string, SpeechLang>;
     } catch {
-      return "en-US";
+      return {};
     }
-  });
+  }
+  const [langMap, setLangMap] = useState<Record<string, SpeechLang>>(() =>
+    readLangMap()
+  );
+  const personaKey = persona ?? "default";
+  const language: SpeechLang = langMap[personaKey] ?? "en-US";
+  function setLanguage(next: SpeechLang) {
+    setLangMap((prev) => {
+      const updated = { ...prev, [personaKey]: next };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(LANG_MAP_KEY, JSON.stringify(updated));
+        } catch {
+          /* noop */
+        }
+      }
+      return updated;
+    });
+  }
+
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
 
-  // Persist draft text to localStorage (debounced via React's batch updates).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, text);
-    } catch {
-      /* quota exceeded — ignore */
-    }
-  }, [text]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem("talentgraph:skills:lang", language);
-    } catch {
-      /* noop */
-    }
-  }, [language]);
+  // Debounced persistence for draft text — exposes status for the "Saved" pill.
+  const persist = useDebouncedLocalStorage(STORAGE_KEY, text, {
+    delayMs: 500,
+  });
 
   // Persona quick-fill — only when no draft is restored.
   useEffect(() => {
