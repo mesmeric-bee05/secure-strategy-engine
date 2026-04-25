@@ -261,6 +261,143 @@ function SkillsPage() {
 
   const canRun = text.trim().length >= 8 && !mutation.isPending;
 
+  // ---------------------------------------------------------------------------
+  // Keyboard navigation for persona chips (radiogroup pattern)
+  // ---------------------------------------------------------------------------
+  const personaBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const focusedPersonaIdx = useRef<number>(0);
+
+  function focusPersonaAt(idx: number) {
+    const total = personas.length;
+    if (total === 0) return;
+    const wrapped = ((idx % total) + total) % total;
+    focusedPersonaIdx.current = wrapped;
+    requestAnimationFrame(() => {
+      personaBtnRefs.current[wrapped]?.focus();
+    });
+  }
+
+  function onPersonaKeyDown(
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    idx: number,
+    slug: string
+  ) {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        focusPersonaAt(idx + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        focusPersonaAt(idx - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusPersonaAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusPersonaAt(personas.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        switchPersona(slug);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Export / Import drafts
+  // ---------------------------------------------------------------------------
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExport = useCallback(() => {
+    try {
+      const payload = buildExport({ drafts: draftMap, languages: langMap });
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const n = Object.keys(payload.drafts).length;
+      toast.success(`Exported ${n} draft${n === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
+    }
+  }, [draftMap, langMap]);
+
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      try {
+        const raw = await file.text();
+        const json: unknown = JSON.parse(raw);
+        const parsed = parseImport(json);
+        const incomingSlugs = Object.keys(parsed.drafts);
+        const overlap = incomingSlugs.filter(
+          (s) => (draftMap[s] ?? "").trim().length > 0
+        );
+        const ok =
+          typeof window === "undefined"
+            ? true
+            : window.confirm(
+                `Import ${incomingSlugs.length} draft${
+                  incomingSlugs.length === 1 ? "" : "s"
+                }? ${
+                  overlap.length > 0
+                    ? `${overlap.length} will overwrite existing drafts (${overlap.join(", ")}).`
+                    : "No existing drafts will be overwritten."
+                }`
+              );
+        if (!ok) return;
+        setDraftMap((prev) => ({ ...prev, ...parsed.drafts }));
+        setLangMap((prev) => {
+          const updated = { ...prev, ...parsed.languages };
+          if (typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(
+                LANG_MAP_KEY,
+                JSON.stringify(updated)
+              );
+            } catch {
+              /* noop */
+            }
+          }
+          return updated;
+        });
+        toast.success(
+          `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}` +
+            (parsed.droppedLanguages.length
+              ? ` (skipped ${parsed.droppedLanguages.length} unknown language${parsed.droppedLanguages.length === 1 ? "" : "s"})`
+              : "")
+        );
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          const issue = e.issues[0];
+          toast.error(
+            `Invalid backup file${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}`
+          );
+        } else {
+          toast.error(
+            e instanceof Error ? e.message : "Could not import file"
+          );
+        }
+      }
+    },
+    [draftMap]
+  );
+
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">
