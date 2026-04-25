@@ -1,0 +1,520 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Mic, MicOff, Sparkles, Loader2, QrCode, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
+
+import { AppShell } from "@/components/AppShell";
+import { PageTitle } from "@/components/PageHeader";
+import { CitationsPanel } from "@/components/CitationsPanel";
+import { extractSkills, listPersonas } from "@/server/skills.functions";
+import { getCitations } from "@/server/citations.functions";
+import type { ExtractedSkillT } from "@/lib/schemas";
+
+const SearchSchema = z.object({
+  persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
+});
+
+export const Route = createFileRoute("/skills")({
+  validateSearch: SearchSchema,
+  head: () => ({
+    meta: [
+      {
+        title:
+          "Skills Signal Engine — Map informal skills to ISCO-08 · TalentGraph",
+      },
+      {
+        name: "description",
+        content:
+          "Speak or type your work experience in any language. AI maps it to ISCO-08 international occupation codes and ESCO skills taxonomy.",
+      },
+      {
+        property: "og:title",
+        content: "Skills Signal Engine · TalentGraph Africa",
+      },
+      {
+        property: "og:description",
+        content:
+          "Voice or text → ISCO-08 + ESCO mapping. Portable, border-crossing skill profile in seconds.",
+      },
+    ],
+  }),
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery({
+      queryKey: ["personas"],
+      queryFn: () => listPersonas(),
+    });
+    void context.queryClient.prefetchQuery({
+      queryKey: ["citations", "global"],
+      queryFn: () => getCitations({ data: {} }),
+    });
+  },
+  component: SkillsPage,
+});
+
+type SkillRow = ExtractedSkillT;
+
+function SkillsPage() {
+  const search = Route.useSearch();
+  const personasQ = useQuery({
+    queryKey: ["personas"],
+    queryFn: () => listPersonas(),
+  });
+  const citationsQ = useQuery({
+    queryKey: ["citations", "global"],
+    queryFn: () => getCitations({ data: {} }),
+  });
+
+  const personas = personasQ.data?.personas ?? [];
+
+  const [text, setText] = useState("");
+  const [persona, setPersona] = useState<string | undefined>(search.persona);
+  const [language] = useState<"en" | "sw" | "fr" | "ha">("en");
+  const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
+
+  // Persona quick-fill
+  useEffect(() => {
+    if (!persona) return;
+    const p = personas.find((x) => x.slug === persona);
+    if (p && !text) setText(p.prefill_text);
+  }, [persona, personas, text]);
+
+  const extractFn = useServerFn(extractSkills);
+  const mutation = useMutation({
+    mutationFn: () =>
+      extractFn({
+        data: {
+          text: text.trim(),
+          language,
+          personaSlug: persona as never,
+        },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      // Stream rows in with a small stagger for the "AI is working" feel
+      const incoming = res.result.skills;
+      setSkills([]);
+      setOverallConfidence(res.result.overall_confidence);
+      incoming.forEach((s, i) =>
+        setTimeout(() => setSkills((prev) => [...prev, s]), i * 90)
+      );
+      if (res.warnings.length) {
+        toast.message(res.warnings.join(" · "));
+      } else {
+        toast.success(`Mapped ${incoming.length} skills to ISCO-08`);
+      }
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Extraction failed"),
+  });
+
+  const voice = useVoiceCapture({ onText: (t) => setText((prev) => prev + (prev ? " " : "") + t) });
+
+  const canRun = text.trim().length >= 8 && !mutation.isPending;
+
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">
+        <PageTitle
+          module="Module 01"
+          eyebrow="Skills Signal Engine"
+          description="Speak or type — in any language. The AI maps your description to ISCO-08 4-digit occupation codes and the ESCO skills taxonomy. Portable across borders and sectors."
+        >
+          Map your skills to the global economy
+        </PageTitle>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* INPUT */}
+          <div>
+            <h2 className="mb-1 font-display text-[14px] font-semibold text-tx-0">
+              Describe your skills & experience
+            </h2>
+            <p className="mb-3 text-[11.5px] text-tx-2">
+              Include informal work, self-taught skills, and community roles.
+            </p>
+
+            {/* Persona quick-fill */}
+            <div className="mb-3">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-tx-2">
+                Quick-fill with persona
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {personas.map((p) => {
+                  const active = persona === p.slug;
+                  return (
+                    <button
+                      key={p.slug}
+                      type="button"
+                      onClick={() => {
+                        setPersona(p.slug);
+                        setText(p.prefill_text);
+                      }}
+                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                        active
+                          ? "border-gold bg-gold-soft text-gold"
+                          : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
+                      }`}
+                    >
+                      <span>{p.emoji}</span>
+                      <span>{p.display_name}</span>
+                      <span className="text-[10px] text-tx-2">
+                        · {p.occupation}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-bg-4 p-3 transition focus-within:border-gold-glow focus-within:shadow-[0_0_0_3px_oklch(0.770_0.140_75/0.08)]">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value.slice(0, 4000))}
+                rows={8}
+                placeholder="Example: I've been repairing smartphones since I was 17. I replace screens, batteries, motherboards. I help customers with software issues and data recovery. I run my own small shop and manage 3 other technicians. I speak English, Swahili, and Kikuyu..."
+                className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-tx-0 outline-none placeholder:text-tx-2"
+              />
+              <div className="mt-2 flex items-center gap-2 border-t border-border-soft pt-2">
+                <button
+                  type="button"
+                  onClick={voice.toggle}
+                  disabled={!voice.supported}
+                  title={voice.supported ? "Speak your skills" : "Voice capture not supported in this browser"}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-[11px] font-medium transition ${
+                    voice.listening
+                      ? "anim-pulse-coral border-coral/50 bg-coral-soft text-coral"
+                      : "border-border-strong bg-transparent text-tx-1 hover:border-gold-glow hover:bg-gold-soft hover:text-gold"
+                  } ${!voice.supported ? "cursor-not-allowed opacity-50" : ""}`}
+                >
+                  {voice.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {voice.listening ? "Stop" : "Speak"}
+                </button>
+                <span className="text-[10px] text-tx-2">
+                  {voice.supported ? voice.listening ? "Listening…" : "Web Speech API" : "Voice unavailable"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => mutation.mutate()}
+                  disabled={!canRun}
+                  className="ml-auto flex items-center gap-2 rounded-md bg-gold px-4 py-1.5 text-[12px] font-semibold text-bg-0 transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Mapping…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Map to ISCO-08 / ESCO
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-3 rounded-md border border-border-soft bg-bg-3 px-3 py-2 text-[10.5px] leading-relaxed text-tx-2">
+              <span className="text-tx-1">🔑</span> Skill extraction uses{" "}
+              <strong className="text-tx-0">Lovable AI · google/gemini-3-flash-preview</strong>{" "}
+              with structured tool-calling. Output mapped to{" "}
+              <strong className="text-tx-0">ISCO-08</strong> (ILO 4-digit codes)
+              and <strong className="text-tx-0">ESCO v1.1</strong>.
+            </p>
+          </div>
+
+          {/* OUTPUT */}
+          <div>
+            <h2 className="mb-1 font-display text-[14px] font-semibold text-tx-0">
+              Extracted Skill Profile
+            </h2>
+            <p className="mb-3 text-[11.5px] text-tx-2">
+              Mapped to international taxonomy — portable, verifiable, explainable.
+            </p>
+
+            <SkillConstellation skills={skills} />
+            <IscoMappingTable skills={skills} loading={mutation.isPending} />
+            {skills.length > 0 && (
+              <CredentialCardPreview
+                personaName={
+                  personas.find((p) => p.slug === persona)?.display_name ??
+                  "Anonymous"
+                }
+                location={
+                  personas.find((p) => p.slug === persona)?.location ?? ""
+                }
+                skills={skills}
+                overallConfidence={overallConfidence}
+              />
+            )}
+          </div>
+        </div>
+
+        <CitationsPanel citations={citationsQ.data ?? []} />
+      </div>
+    </AppShell>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Voice capture (Web Speech API)                                            */
+/* -------------------------------------------------------------------------- */
+function useVoiceCapture({ onText }: { onText: (t: string) => void }) {
+  const [supported, setSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<unknown>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const w = window as unknown as {
+      SpeechRecognition?: new () => unknown;
+      webkitSpeechRecognition?: new () => unknown;
+    };
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    setSupported(!!Ctor);
+  }, []);
+
+  function toggle() {
+    if (!supported) return;
+    const w = window as unknown as {
+      SpeechRecognition?: new () => unknown;
+      webkitSpeechRecognition?: new () => unknown;
+    };
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    if (listening) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recRef.current as any)?.stop?.();
+      setListening(false);
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r: any = new (Ctor as never)();
+    r.continuous = true;
+    r.interimResults = false;
+    r.lang = "en-US";
+    r.onresult = (e: { results: ArrayLike<{ 0: { transcript: string } }> }) => {
+      const last = e.results[e.results.length - 1];
+      if (last) onText(last[0].transcript);
+    };
+    r.onend = () => setListening(false);
+    r.onerror = () => setListening(false);
+    r.start();
+    recRef.current = r;
+    setListening(true);
+  }
+  return { supported, listening, toggle };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Constellation (pure SVG)                                                   */
+/* -------------------------------------------------------------------------- */
+function SkillConstellation({ skills }: { skills: SkillRow[] }) {
+  const w = 400;
+  const h = 260;
+  const cx = w / 2;
+  const cy = h / 2;
+  const positions = useMemo(() => {
+    return skills.map((s, i, arr) => {
+      const angle = (i / Math.max(1, arr.length)) * Math.PI * 2 - Math.PI / 2;
+      const radius = 70 + (10 - s.proficiency_level) * 4;
+      return {
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+        s,
+      };
+    });
+  }, [skills]);
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-xl border border-border-soft bg-bg-4">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-[260px] w-full">
+        {/* edges */}
+        {positions.map((p, i) => (
+          <line
+            key={`e-${i}`}
+            x1={cx}
+            y1={cy}
+            x2={p.x}
+            y2={p.y}
+            stroke="oklch(1 0 0 / 0.12)"
+            strokeWidth={0.5 + p.s.confidence}
+          />
+        ))}
+        {/* center */}
+        <circle cx={cx} cy={cy} r={18} fill="oklch(0.770 0.140 75 / 0.18)" stroke="oklch(0.770 0.140 75)" strokeWidth={1.5} />
+        <text x={cx} y={cy + 4} textAnchor="middle" className="fill-gold" style={{ fontSize: 10, fontFamily: "Space Mono", fontWeight: 700 }}>
+          YOU
+        </text>
+        {/* nodes */}
+        {positions.map((p, i) => {
+          const color = CATEGORY_COLOR[p.s.category];
+          return (
+            <g key={`n-${i}`} className="anim-fade-in" style={{ animationDelay: `${i * 90}ms` }}>
+              <circle cx={p.x} cy={p.y} r={6 + p.s.proficiency_level / 1.5} fill={color} fillOpacity={0.85} stroke={color} strokeWidth={1} />
+              <text x={p.x} y={p.y + 22} textAnchor="middle" className="fill-tx-0" style={{ fontSize: 9, fontFamily: "DM Sans" }}>
+                {truncate(p.s.skill_name, 18)}
+              </text>
+            </g>
+          );
+        })}
+        {skills.length === 0 && (
+          <text x={cx} y={cy + 50} textAnchor="middle" style={{ fontSize: 10, fill: "oklch(0.500 0.035 255)" }}>
+            Map your skills to populate the constellation
+          </text>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+const CATEGORY_COLOR: Record<string, string> = {
+  technical: "oklch(0.760 0.130 230)",
+  digital: "oklch(0.800 0.130 180)",
+  trade: "oklch(0.770 0.140 75)",
+  creative: "oklch(0.720 0.180 22)",
+  business: "oklch(0.760 0.130 230)",
+  interpersonal: "oklch(0.750 0.130 290)",
+  agriculture: "oklch(0.760 0.150 160)",
+  service: "oklch(0.750 0.130 290)",
+};
+
+function truncate(s: string, n: number) {
+  return s.length <= n ? s : s.slice(0, n - 1) + "…";
+}
+
+/* -------------------------------------------------------------------------- */
+/* ISCO mapping table                                                         */
+/* -------------------------------------------------------------------------- */
+function IscoMappingTable({ skills, loading }: { skills: SkillRow[]; loading: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border-soft bg-bg-3">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-border-soft">
+            {["Skill", "ISCO-08", "ESCO", "Category", "Level", "Conf"].map((h) => (
+              <th key={h} className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.07em] text-tx-2">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {skills.length === 0 && !loading && (
+            <tr>
+              <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-tx-2">
+                Click "Map to ISCO-08 / ESCO" to populate
+              </td>
+            </tr>
+          )}
+          {loading && skills.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-tx-2">
+                <Loader2 className="mx-auto h-4 w-4 animate-spin text-gold" />
+              </td>
+            </tr>
+          )}
+          {skills.map((s, i) => (
+            <tr key={i} className="anim-fade-in border-b border-border-soft last:border-b-0 hover:bg-gold-soft" style={{ animationDelay: `${i * 90}ms` }}>
+              <td className="px-3 py-2 text-[12px] text-tx-0">{s.skill_name}</td>
+              <td className="px-3 py-2 font-mono text-[10px] font-bold text-gold">{s.isco_code}</td>
+              <td className="px-3 py-2 font-mono text-[9px] text-tx-2">{s.esco_code ?? "—"}</td>
+              <td className="px-3 py-2 text-[11px] text-tx-1">{s.category}</td>
+              <td className="px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-1 w-12 rounded bg-border">
+                    <div className="h-1 rounded bg-gradient-to-r from-teal to-gold" style={{ width: `${s.proficiency_level * 10}%` }} />
+                  </div>
+                  <span className="font-mono text-[10px] text-tx-1">{s.proficiency_level}</span>
+                </div>
+              </td>
+              <td className="px-3 py-2 font-mono text-[10px] text-tx-1">{(s.confidence * 100).toFixed(0)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Credential card preview (SVG-styled)                                       */
+/* -------------------------------------------------------------------------- */
+function CredentialCardPreview({
+  personaName,
+  location,
+  skills,
+  overallConfidence,
+}: {
+  personaName: string;
+  location: string;
+  skills: SkillRow[];
+  overallConfidence: number | null;
+}) {
+  const top = skills.slice(0, 3);
+  const fingerprint = useMemo(() => fakeHash(skills.map((s) => s.skill_name).join("|")), [skills]);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-gold/40 bg-gradient-to-br from-bg-2 to-bg-1 p-5 shadow-[0_0_30px_-10px_oklch(0.770_0.140_75/0.4)]">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold text-gold">◈ TalentGraph Africa</span>
+        <span className="rounded border border-teal/40 bg-teal-soft px-2 py-0.5 font-mono text-[9px] font-bold text-teal">
+          ✓ Cryptographically signed
+        </span>
+      </div>
+      <p className="font-display text-[18px] font-bold text-tx-0">{personaName}</p>
+      <p className="text-[11px] text-tx-2">{location}</p>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {top.map((s) => (
+          <span key={s.skill_name} className="rounded-full border border-gold-glow bg-gold-soft px-2 py-0.5 text-[10px] font-medium text-gold">
+            {s.skill_name} · L{s.proficiency_level}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 flex items-end justify-between border-t border-border-soft pt-3">
+        <div>
+          <p className="font-mono text-[9px] text-tx-2">SHA-256 · {fingerprint.slice(0, 24)}…</p>
+          <p className="font-mono text-[9px] text-tx-2">Anchored · TalentGraph Cloud (preview)</p>
+          {overallConfidence !== null && (
+            <p className="mt-1 font-mono text-[9px] text-tx-1">
+              Overall confidence · {(overallConfidence * 100).toFixed(0)}%
+            </p>
+          )}
+        </div>
+        <div className="flex h-12 w-12 items-center justify-center rounded border border-border-strong bg-bg-3">
+          <QrCode className="h-7 w-7 text-tx-1" />
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Link
+          to="/credential/$id"
+          params={{ id: "preview" }}
+          className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-3 py-1.5 text-[11px] text-tx-1 hover:bg-bg-4"
+        >
+          View Credential
+        </Link>
+        <button
+          type="button"
+          onClick={() => toast.info("WhatsApp share is wired in the next iteration.")}
+          className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-3 py-1.5 text-[11px] text-tx-1 hover:bg-bg-4"
+        >
+          <Share2 className="h-3 w-3" />
+          Share via WhatsApp
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function fakeHash(input: string): string {
+  // Deterministic non-crypto fingerprint for preview-only display.
+  let h = 0n;
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 131n + BigInt(input.charCodeAt(i))) & 0xffffffffffffffffn;
+  }
+  return h.toString(16).padStart(16, "0").repeat(4).slice(0, 64);
+}
