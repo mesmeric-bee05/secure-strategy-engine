@@ -67,6 +67,21 @@ export const Route = createFileRoute("/skills")({
 
 type SkillRow = ExtractedSkillT;
 
+/** BCP-47 codes mapped to the AI extractor's 2-letter language hint. */
+const SPEECH_LANGS = [
+  { code: "en-US", label: "English (US)", aiLang: "en" },
+  { code: "en-GB", label: "English (UK)", aiLang: "en" },
+  { code: "sw-KE", label: "Kiswahili (Kenya)", aiLang: "sw" },
+  { code: "sw-TZ", label: "Kiswahili (Tanzania)", aiLang: "sw" },
+  { code: "fr-FR", label: "Français", aiLang: "fr" },
+  { code: "ha-NG", label: "Hausa (Nigeria)", aiLang: "ha" },
+] as const;
+type SpeechLang = (typeof SPEECH_LANGS)[number]["code"];
+type AiLang = (typeof SPEECH_LANGS)[number]["aiLang"];
+function aiLangFor(code: SpeechLang): AiLang {
+  return (SPEECH_LANGS.find((s) => s.code === code)?.aiLang ?? "en") as AiLang;
+}
+
 function SkillsPage() {
   const search = Route.useSearch();
   const personasQ = useQuery({
@@ -134,7 +149,7 @@ function SkillsPage() {
       extractFn({
         data: {
           text: text.trim(),
-          language,
+          language: aiLangFor(language),
           personaSlug: persona as never,
         },
       }),
