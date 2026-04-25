@@ -61,6 +61,20 @@ export function useSpeechRecognition({
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionInstance | null>(null);
+  const langRef = useRef(lang);
+
+  useEffect(() => {
+    langRef.current = lang;
+    // If currently listening, restart with the new language.
+    if (listening && recRef.current) {
+      try {
+        recRef.current.stop();
+      } catch {
+        /* noop */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   useEffect(() => {
     setSupported(!!getSpeechRecognitionCtor());
