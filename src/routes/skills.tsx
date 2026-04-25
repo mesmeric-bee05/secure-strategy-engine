@@ -217,12 +217,20 @@ function SkillsPage() {
           Map your skills to the global economy
         </PageTitle>
 
+        <LastErrorPanel moduleFilter="Skills" />
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* INPUT */}
           <div>
-            <h2 className="mb-1 font-display text-[14px] font-semibold text-tx-0">
-              Describe your skills & experience
-            </h2>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 className="font-display text-[14px] font-semibold text-tx-0">
+                Describe your skills & experience
+              </h2>
+              <SavedIndicator
+                status={persist.status}
+                error={persist.error}
+              />
+            </div>
             <p className="mb-3 text-[11.5px] text-tx-2">
               Include informal work, self-taught skills, and community roles.
             </p>
