@@ -9,6 +9,8 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
@@ -51,6 +53,15 @@ export const Route = createFileRoute("/skills")({
       queryFn: () => getCitations({ data: {} }),
     });
   },
+  errorComponent: ({ error, reset }) => (
+    <AppShell>
+      <RouteErrorBoundary
+        error={error}
+        reset={reset}
+        module="Skills Signal Engine"
+      />
+    </AppShell>
+  ),
   component: SkillsPage,
 });
 
