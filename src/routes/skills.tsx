@@ -280,10 +280,8 @@ function useVoiceCapture({ onText }: { onText: (t: string) => void }) {
 
   function toggle() {
     if (!supported) return;
-    const w = window as unknown as {
-      SpeechRecognition?: new () => unknown;
-      webkitSpeechRecognition?: new () => unknown;
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
     if (listening) {
@@ -293,7 +291,7 @@ function useVoiceCapture({ onText }: { onText: (t: string) => void }) {
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r: any = new (Ctor as never)();
+    const r: any = new Ctor();
     r.continuous = true;
     r.interimResults = false;
     r.lang = "en-US";
