@@ -641,41 +641,73 @@ function SavedIndicator({
   status: "idle" | "saving" | "saved" | "error";
   error: string | null;
 }) {
-  if (status === "idle") return null;
-  if (status === "saving") {
+  // Build a stable announcement message for screen readers. We always render
+  // the live region (even when idle/empty) so AT users hear every transition
+  // — visually it stays hidden when there's nothing to show.
+  const announcement =
+    status === "saving"
+      ? "Saving draft to local storage"
+      : status === "saved"
+        ? "Draft saved to local storage"
+        : status === "error"
+          ? `Could not save draft: ${error ?? "unknown error"}`
+          : "";
+
+  // Native title tooltip text — surfaces the exact error reason on hover.
+  const tooltip =
+    status === "error"
+      ? `Local storage save failed${error ? `: ${error}` : ""}. Your draft is kept in memory but won't survive a refresh.`
+      : status === "saving"
+        ? "Saving your draft to this browser's local storage"
+        : status === "saved"
+          ? "Draft saved to this browser's local storage"
+          : undefined;
+
+  if (status === "idle") {
+    // Keep an empty live region mounted so the next transition announces.
     return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="inline-flex items-center gap-1 text-[10.5px] text-tx-2"
-      >
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Saving…
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
       </span>
     );
   }
-  if (status === "saved") {
-    return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="anim-fade-in inline-flex items-center gap-1 text-[10.5px] text-gold"
-      >
-        <Check className="h-3 w-3" />
-        Saved
-      </span>
-    );
-  }
+
   return (
     <span
       role="status"
       aria-live="polite"
-      title={error ?? "Save failed"}
-      className="inline-flex items-center gap-1 text-[10.5px] text-coral"
+      aria-atomic="true"
+      title={tooltip}
+      className={`anim-fade-in inline-flex items-center gap-1 text-[10.5px] ${
+        status === "error"
+          ? "text-coral"
+          : status === "saved"
+            ? "text-gold"
+            : "text-tx-2"
+      }`}
     >
-      <AlertTriangle className="h-3 w-3" />
-      {error ?? "Save failed"}
+      {status === "saving" && (
+        <>
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span aria-hidden="true">Saving…</span>
+        </>
+      )}
+      {status === "saved" && (
+        <>
+          <Check className="h-3 w-3" aria-hidden="true" />
+          <span aria-hidden="true">Saved</span>
+        </>
+      )}
+      {status === "error" && (
+        <>
+          <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+          <span aria-hidden="true">{error ?? "Save failed"}</span>
+        </>
+      )}
+      {/* Visually-hidden full message for screen readers. */}
+      <span className="sr-only">{announcement}</span>
     </span>
   );
 }
+
 
