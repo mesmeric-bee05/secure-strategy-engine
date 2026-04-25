@@ -99,7 +99,7 @@ export function useSpeechRecognition({
       const r = new Ctor();
       r.continuous = continuous;
       r.interimResults = false;
-      r.lang = lang;
+      r.lang = langRef.current;
       r.onresult = (e) => {
         const last = e.results[e.results.length - 1];
         if (last) onText(last[0].transcript);
