@@ -462,6 +462,13 @@ function SkillsPage() {
           Map your skills to the global economy
         </PageTitle>
 
+        {!bannerDismissed && (
+          <RestoredBanner
+            count={restoredCountRef.current}
+            onDismiss={dismissRestoredBanner}
+          />
+        )}
+
         <LastErrorPanel moduleFilter="Skills" />
 
         <div className="grid gap-6 lg:grid-cols-2">
