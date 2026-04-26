@@ -49,6 +49,20 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       { name: "theme-color", content: "#060B16" },
+      // Defence-in-depth security headers. The authoritative copies live in
+      // `public/_headers` and are applied by the Cloudflare edge in
+      // production; the meta-tag forms below give the same protections to
+      // local dev and any host that doesn't honour _headers.
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      {
+        httpEquiv: "X-Content-Type-Options",
+        content: "nosniff",
+      },
+      {
+        httpEquiv: "Permissions-Policy",
+        content:
+          "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=(), interest-cohort=()",
+      },
       { title: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05" },
       {
         name: "description",
