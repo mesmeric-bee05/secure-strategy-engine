@@ -14,6 +14,7 @@ import {
   Download,
   Upload,
   RotateCw,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -23,11 +24,14 @@ import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LastErrorPanel } from "@/components/LastErrorPanel";
+import { RestoredBanner } from "@/components/RestoredBanner";
+import { SkillsPrivacyCard } from "@/components/SkillsPrivacyCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
   useDebouncedLocalStorage,
   type PersistStatus,
 } from "@/hooks/useDebouncedLocalStorage";
+import { useSkillsHotkeys } from "@/hooks/useSkillsHotkeys";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
@@ -38,11 +42,14 @@ import {
   LEGACY_LANG_KEY,
   buildExport,
   exportFilename,
+  friendlyImportError,
   hasUnsavedChanges as hasUnsavedChangesPure,
   parseImport,
   readJSONMap,
   unsavedCount,
 } from "@/lib/skills-drafts";
+
+const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 
 const SearchSchema = z.object({
   persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
@@ -382,21 +389,67 @@ function SkillsPage() {
               : "")
         );
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          const issue = e.issues[0];
-          toast.error(
-            `Invalid backup file${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}`
-          );
-        } else {
-          toast.error(
-            e instanceof Error ? e.message : "Could not import file"
-          );
-        }
+        toast.error(friendlyImportError(e));
       }
     },
     [draftMap]
   );
 
+  // ---------------------------------------------------------------------------
+  // Restored-from-storage banner
+  // ---------------------------------------------------------------------------
+  // Snapshot the count of non-empty drafts present at mount time so the banner
+  // reflects what was rehydrated, not what the user has typed since.
+  const restoredCountRef = useRef<number>(
+    Object.values(draftMap).filter((v) => (v ?? "").trim().length > 0).length
+  );
+  const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.sessionStorage.getItem(RESTORED_BANNER_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const dismissRestoredBanner = useCallback(() => {
+    setBannerDismissed(true);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(RESTORED_BANNER_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Page-level keyboard shortcuts
+  // ---------------------------------------------------------------------------
+  // Cycle to the next/previous persona using Alt+Arrow; reuses the existing
+  // switchPersona() flow (which honours the unsaved-changes confirm prompt).
+  const cyclePersona = useCallback(
+    (direction: 1 | -1) => {
+      if (personas.length === 0) return;
+      const currentIdx = persona
+        ? personas.findIndex((p) => p.slug === persona)
+        : -1;
+      const baseIdx = currentIdx === -1 ? 0 : currentIdx;
+      const nextIdx =
+        ((baseIdx + direction) % personas.length + personas.length) %
+        personas.length;
+      switchPersona(personas[nextIdx].slug);
+    },
+    // switchPersona depends on draftMap/personas; including persona keeps cycling correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [persona, personas, draftMap]
+  );
+
+  useSkillsHotkeys({
+    onExport: handleExport,
+    onImport: () => importInputRef.current?.click(),
+    onPrevPersona: () => cyclePersona(-1),
+    onNextPersona: () => cyclePersona(1),
+  });
 
   return (
     <AppShell>
@@ -409,6 +462,13 @@ function SkillsPage() {
           Map your skills to the global economy
         </PageTitle>
 
+        {!bannerDismissed && (
+          <RestoredBanner
+            count={restoredCountRef.current}
+            onDismiss={dismissRestoredBanner}
+          />
+        )}
+
         <LastErrorPanel moduleFilter="Skills" />
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -419,11 +479,14 @@ function SkillsPage() {
                 Describe your skills & experience
               </h2>
               <div className="flex items-center gap-2">
-                <SavedIndicator status={persist.status} error={persist.error} />
+                <span className="hidden sm:inline-flex">
+                  <SavedIndicator status={persist.status} error={persist.error} />
+                </span>
                 <button
                   type="button"
                   onClick={handleExport}
                   aria-label="Export all persona drafts as JSON"
+                  aria-keyshortcuts="Control+S Meta+S"
                   className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
                 >
                   <Download className="h-3 w-3" aria-hidden="true" />
@@ -433,11 +496,72 @@ function SkillsPage() {
                   type="button"
                   onClick={() => importInputRef.current?.click()}
                   aria-label="Import persona drafts from a JSON backup file"
+                  aria-keyshortcuts="Control+I Meta+I"
                   className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
                 >
                   <Upload className="h-3 w-3" aria-hidden="true" />
                   Import
                 </button>
+                <details className="group relative">
+                  <summary
+                    aria-label="Show keyboard shortcuts"
+                    className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow [&::-webkit-details-marker]:hidden"
+                  >
+                    <Keyboard className="h-3 w-3" aria-hidden="true" />
+                    Shortcuts
+                  </summary>
+                  <div
+                    role="region"
+                    aria-label="Keyboard shortcuts for the skills page"
+                    className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-border-strong bg-bg-2 p-3 text-[11px] text-tx-1 shadow-lg"
+                  >
+                    <p className="mb-2 font-display text-[11px] font-semibold text-tx-0">
+                      Keyboard shortcuts
+                    </p>
+                    <ul className="space-y-1.5">
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Export drafts</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Ctrl</kbd>
+                          <span className="px-0.5">/</span>
+                          <kbd className="rounded border border-border bg-bg-3 px-1">⌘</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">S</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Import drafts</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Ctrl</kbd>
+                          <span className="px-0.5">/</span>
+                          <kbd className="rounded border border-border bg-bg-3 px-1">⌘</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">I</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Previous persona</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Alt</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">←</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Next persona</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Alt</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">→</kbd>
+                        </span>
+                      </li>
+                    </ul>
+                    <p className="mt-2 text-[10px] text-tx-2">
+                      Alt+Arrow is suppressed while typing in the editor so
+                      caret-jump-by-word still works.
+                    </p>
+                  </div>
+                </details>
                 <input
                   ref={importInputRef}
                   type="file"
@@ -474,13 +598,14 @@ function SkillsPage() {
               <p id="persona-instructions" className="sr-only">
                 Use left and right arrow keys to navigate personas, Enter or
                 Space to select. Home and End jump to the first or last
-                persona.
+                persona. From anywhere on the page, hold Alt and press the
+                left or right arrow key to cycle personas.
               </p>
               <div
                 role="radiogroup"
                 aria-label="Choose a persona to quick-fill"
                 aria-describedby="persona-instructions"
-                className="flex flex-wrap gap-2"
+                className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 snap-x snap-mandatory sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
               >
                 {personas.map((p, idx) => {
                   const active = persona === p.slug;
@@ -516,7 +641,7 @@ function SkillsPage() {
                             ? "saved draft"
                             : "no draft yet"
                       }${active ? ", currently selected" : ""}`}
-                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
+                      className={`flex shrink-0 snap-start items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
                         active
                           ? "border-gold bg-gold-soft text-gold"
                           : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
@@ -617,6 +742,35 @@ function SkillsPage() {
               </div>
             </div>
 
+            {/* Sticky-on-mobile saved/unsaved + character counter so the
+                indicator stays visible while typing on small screens. */}
+            <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-between gap-2 rounded-md border border-border-soft bg-bg-3/95 px-3 py-1.5 backdrop-blur sm:static sm:bg-bg-3">
+              <div className="flex items-center gap-2 text-[10.5px] text-tx-2">
+                <span aria-hidden="true">●</span>
+                <span>
+                  {persona ? (
+                    <>
+                      Editing{" "}
+                      <strong className="text-tx-1">
+                        {personas.find((p) => p.slug === persona)?.display_name ?? persona}
+                      </strong>
+                    </>
+                  ) : (
+                    "Editing default draft"
+                  )}
+                </span>
+                <span className="sm:hidden">
+                  <SavedIndicator status={persist.status} error={persist.error} />
+                </span>
+              </div>
+              <span
+                className="font-mono text-[10px] text-tx-2"
+                aria-label={`${text.length} of 4000 characters used`}
+              >
+                {text.length.toLocaleString()} / 4,000
+              </span>
+            </div>
+
             <p className="mt-3 rounded-md border border-border-soft bg-bg-3 px-3 py-2 text-[10.5px] leading-relaxed text-tx-2">
               <span className="text-tx-1">🔑</span> Skill extraction uses{" "}
               <strong className="text-tx-0">Lovable AI · google/gemini-3-flash-preview</strong>{" "}
@@ -652,6 +806,8 @@ function SkillsPage() {
             )}
           </div>
         </div>
+
+        <SkillsPrivacyCard />
 
         <CitationsPanel citations={citationsQ.data ?? []} />
       </div>

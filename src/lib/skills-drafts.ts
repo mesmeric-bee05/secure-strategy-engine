@@ -76,12 +76,57 @@ export function unsavedCount(
 
 export const DRAFT_EXPORT_VERSION = 1;
 
-export const DraftExportSchema = z.object({
-  version: z.literal(DRAFT_EXPORT_VERSION),
-  exportedAt: z.string(),
-  drafts: z.record(z.string(), z.string()),
-  languages: z.record(z.string(), z.string()).default({}),
-});
+/** Keys that must never appear in user-supplied JSON (prototype pollution). */
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Returns true only for objects whose prototype is `Object.prototype` —
+ * rejects arrays, Maps, Dates, and class instances even when they would
+ * structurally satisfy a `Record<string, string>` zod schema.
+ */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object") return false;
+  if (Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+/** Strip prototype-pollution keys from a record before validation. */
+function stripForbiddenKeys<T>(rec: Record<string, T>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    if (!FORBIDDEN_KEYS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+/** Slug keys: short, alphanumeric+`-_`, never empty, never prototype-pollution. */
+const SlugKey = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-zA-Z0-9_-]+$/, "slug must be alphanumeric (with - or _)")
+  .refine((k) => !FORBIDDEN_KEYS.has(k), {
+    message: "forbidden key name",
+  });
+
+const PlainStringRecord = (maxLen: number) =>
+  z
+    .unknown()
+    .refine(isPlainObject, {
+      message: "must be a plain object of slug → string",
+    })
+    .transform((v) => stripForbiddenKeys(v as Record<string, unknown>))
+    .pipe(z.record(SlugKey, z.string().max(maxLen)));
+
+export const DraftExportSchema = z
+  .object({
+    version: z.literal(DRAFT_EXPORT_VERSION),
+    exportedAt: z.string(),
+    drafts: PlainStringRecord(20_000),
+    languages: PlainStringRecord(16).default({}),
+  })
+  .strict();
 export type DraftExport = z.infer<typeof DraftExportSchema>;
 
 export interface BuildExportInput {
@@ -121,6 +166,11 @@ export interface ParsedImport {
 /** Parse + sanitize a user-supplied JSON string. Throws on invalid input. */
 export function parseImport(input: unknown): ParsedImport {
   const parsed = DraftExportSchema.parse(input);
+  // Drop empty/whitespace-only drafts so we don't overwrite real data with "".
+  const drafts: Record<string, string> = {};
+  for (const [slug, text] of Object.entries(parsed.drafts)) {
+    if (text.trim().length > 0) drafts[slug] = text;
+  }
   const droppedLanguages: string[] = [];
   const languages: Record<string, SupportedLang> = {};
   for (const [slug, code] of Object.entries(parsed.languages)) {
@@ -130,7 +180,7 @@ export function parseImport(input: unknown): ParsedImport {
       droppedLanguages.push(`${slug}=${code}`);
     }
   }
-  return { drafts: parsed.drafts, languages, droppedLanguages };
+  return { drafts, languages, droppedLanguages };
 }
 
 /** Merge an import on top of current state ("new wins" for matching keys). */
@@ -139,4 +189,44 @@ export function mergeImport<T extends Record<string, string>>(
   incoming: Record<string, string>
 ): T {
   return { ...current, ...incoming } as T;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Friendly error messages for import failures                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Convert any thrown import error into a single human-readable string suitable
+ * for a toast notification. Never reveals stack traces or internal details.
+ */
+export function friendlyImportError(e: unknown): string {
+  if (e instanceof SyntaxError) {
+    return "Invalid backup: file is not valid JSON";
+  }
+  if (e instanceof z.ZodError) {
+    const issue = e.issues[0];
+    if (!issue) return "Invalid backup: unrecognised shape";
+    const path = issue.path.join(".") || "(root)";
+    // Version mismatch: surface the user's version explicitly.
+    if (issue.path[0] === "version" && issue.code === "invalid_literal") {
+      return `Backup version is not supported (expected version ${DRAFT_EXPORT_VERSION})`;
+    }
+    if (issue.path[0] === "version") {
+      return `Backup version is not supported (expected version ${DRAFT_EXPORT_VERSION})`;
+    }
+    if (issue.path[0] === "drafts" && issue.path.length === 1) {
+      return "Invalid backup: drafts must be an object of slug → text";
+    }
+    if (issue.path[0] === "languages" && issue.path.length === 1) {
+      return "Invalid backup: languages must be an object of slug → code";
+    }
+    if (issue.code === "unrecognized_keys") {
+      return "Invalid backup: contains unexpected fields";
+    }
+    return `Invalid backup at ${path}: ${issue.message}`;
+  }
+  if (e instanceof Error && e.message) {
+    return `Could not import file: ${e.message}`;
+  }
+  return "Could not import file";
 }
