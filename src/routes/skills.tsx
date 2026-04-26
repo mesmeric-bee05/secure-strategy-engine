@@ -740,6 +740,33 @@ function SkillsPage() {
               </div>
             </div>
 
+            {/* Sticky-on-mobile saved/unsaved + character counter so the
+                indicator stays visible while typing on small screens. */}
+            <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-between gap-2 rounded-md border border-border-soft bg-bg-3/95 px-3 py-1.5 backdrop-blur sm:static sm:bg-bg-3">
+              <div className="flex items-center gap-2 text-[10.5px] text-tx-2">
+                <span aria-hidden="true">●</span>
+                <span>
+                  {persona ? (
+                    <>
+                      Editing{" "}
+                      <strong className="text-tx-1">
+                        {personas.find((p) => p.slug === persona)?.display_name ?? persona}
+                      </strong>
+                    </>
+                  ) : (
+                    "Editing default draft"
+                  )}
+                </span>
+                <SavedIndicator status={persist.status} error={persist.error} />
+              </div>
+              <span
+                className="font-mono text-[10px] text-tx-2"
+                aria-label={`${text.length} of 4000 characters used`}
+              >
+                {text.length.toLocaleString()} / 4,000
+              </span>
+            </div>
+
             <p className="mt-3 rounded-md border border-border-soft bg-bg-3 px-3 py-2 text-[10.5px] leading-relaxed text-tx-2">
               <span className="text-tx-1">🔑</span> Skill extraction uses{" "}
               <strong className="text-tx-0">Lovable AI · google/gemini-3-flash-preview</strong>{" "}
