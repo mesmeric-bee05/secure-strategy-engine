@@ -479,7 +479,9 @@ function SkillsPage() {
                 Describe your skills & experience
               </h2>
               <div className="flex items-center gap-2">
-                <SavedIndicator status={persist.status} error={persist.error} />
+                <span className="hidden sm:inline-flex">
+                  <SavedIndicator status={persist.status} error={persist.error} />
+                </span>
                 <button
                   type="button"
                   onClick={handleExport}
