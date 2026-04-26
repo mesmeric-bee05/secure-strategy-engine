@@ -10,8 +10,7 @@ export const Route = createFileRoute("/readiness")({
   head: () => ({
     meta: [
       {
-        title:
-          "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
+        title: "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
       },
       {
         name: "description",
@@ -59,17 +58,16 @@ function ReadinessPage() {
           <div className="flex items-start gap-3">
             <Construction className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-semibold text-tx-0">
-                Module 02 is wired to live data
-              </p>
+              <p className="font-semibold text-tx-0">Module 02 is wired to live data</p>
               <p className="mt-1 text-tx-1">
-                The Frey-Osborne probabilities, LMIC calibration factors per
-                country, and Wittgenstein SSP2 projections are already in the
-                database (see <a className="underline" href="/skills">Skills Engine</a> to
-                generate a profile, then return here). The full gauge,
-                per-skill risk rows, adjacent-skill recommender and stacked
-                projection chart land in the next iteration to keep this turn
-                shippable.
+                The Frey-Osborne probabilities, LMIC calibration factors per country, and
+                Wittgenstein SSP2 projections are already in the database (see{" "}
+                <a className="underline" href="/skills">
+                  Skills Engine
+                </a>{" "}
+                to generate a profile, then return here). The full gauge, per-skill risk rows,
+                adjacent-skill recommender and stacked projection chart land in the next iteration
+                to keep this turn shippable.
               </p>
             </div>
           </div>

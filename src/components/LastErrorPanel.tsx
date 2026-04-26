@@ -87,9 +87,7 @@ export function LastErrorPanel({ moduleFilter }: LastErrorPanelProps) {
         role={expired ? "status" : "alert"}
         aria-live={expired ? "off" : "polite"}
         className={`mb-4 flex items-start gap-3 rounded-lg border px-3 py-2 text-[11.5px] ${
-          expired
-            ? "border-border-soft bg-bg-3"
-            : "border-coral/40 bg-coral-soft/30"
+          expired ? "border-border-soft bg-bg-3" : "border-coral/40 bg-coral-soft/30"
         }`}
       >
         {expired ? (
@@ -110,9 +108,7 @@ export function LastErrorPanel({ moduleFilter }: LastErrorPanelProps) {
             <span className="text-tx-2">·</span>
             <span className="text-tx-1">{rec.module}</span>
             <span className="text-tx-2">·</span>
-            <code className="truncate text-[10.5px] text-tx-2">
-              {rec.route}
-            </code>
+            <code className="truncate text-[10.5px] text-tx-2">{rec.route}</code>
           </div>
           <p
             className={`mt-0.5 truncate ${expired ? "text-tx-2" : "text-tx-1"}`}
@@ -121,9 +117,7 @@ export function LastErrorPanel({ moduleFilter }: LastErrorPanelProps) {
             {rec.message}
           </p>
           <div className="mt-1 flex items-center gap-2">
-            <code className="rounded bg-bg-3 px-1.5 py-0.5 text-[10px] text-tx-2">
-              {rec.id}
-            </code>
+            <code className="rounded bg-bg-3 px-1.5 py-0.5 text-[10px] text-tx-2">{rec.id}</code>
             <button
               type="button"
               onClick={copyId}
@@ -154,12 +148,7 @@ export function LastErrorPanel({ moduleFilter }: LastErrorPanelProps) {
       </div>
 
       {/* Visually-hidden live region for copy success/failure announcements. */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announce}
       </div>
     </>

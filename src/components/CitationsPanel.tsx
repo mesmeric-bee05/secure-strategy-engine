@@ -46,32 +46,23 @@ export function CitationsPanel({
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-tx-2 transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
+          className={`h-4 w-4 text-tx-2 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && (
         <ul className="grid gap-2 px-4 pb-4 sm:grid-cols-2">
           {citations.map((c) => (
-            <li
-              key={c.key}
-              className="rounded-lg border border-border-soft bg-bg-2 p-3"
-            >
+            <li key={c.key} className="rounded-lg border border-border-soft bg-bg-2 p-3">
               <div className="mb-1 flex items-center gap-2">
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${CATEGORY_TONE[c.category]}`}
                 >
                   {c.category}
                 </span>
-                <span className="text-[12px] font-semibold text-tx-0">
-                  {c.label}
-                </span>
+                <span className="text-[12px] font-semibold text-tx-0">{c.label}</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-tx-1">
-                {c.citation}
-              </p>
+              <p className="text-[11px] leading-relaxed text-tx-1">{c.citation}</p>
               {c.url && (
                 <a
                   href={c.url}
@@ -91,13 +82,7 @@ export function CitationsPanel({
   );
 }
 
-export function CitationChip({
-  label,
-  title,
-}: {
-  label: string;
-  title?: string;
-}) {
+export function CitationChip({ label, title }: { label: string; title?: string }) {
   return (
     <span
       title={title}

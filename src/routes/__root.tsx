@@ -20,12 +20,10 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <p className="eyebrow mb-2">404 · Lost in the talent graph</p>
         <h1 className="font-display text-7xl font-bold text-tx-0">404</h1>
-        <h2 className="mt-4 font-display text-xl font-semibold text-tx-0">
-          Page not found
-        </h2>
+        <h2 className="mt-4 font-display text-xl font-semibold text-tx-0">Page not found</h2>
         <p className="mt-2 text-sm text-tx-1">
-          That route does not exist in TalentGraph Africa. The product lives
-          across three modules — start at the Overview.
+          That route does not exist in TalentGraph Africa. The product lives across three modules —
+          start at the Overview.
         </p>
         <div className="mt-6">
           <Link
@@ -66,13 +64,20 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           "Map informal-economy skills to ISCO-08, see automation risk and global opportunities. Built for the World Bank Unmapped challenge.",
       },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05" },
-      { name: "twitter:title", content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05" },
-      { name: "description", content: "SecureCode Architect is a web application for managing and securing sensitive data." },
-      { property: "og:description", content: "SecureCode Architect is a web application for managing and securing sensitive data." },
-      { name: "twitter:description", content: "SecureCode Architect is a web application for managing and securing sensitive data." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eff8cca4-adb4-481e-8159-a39d74be75b8/id-preview-b6851556--b7ff7fd2-912d-4f55-9443-d76e9f93ff8d.lovable.app-1777185628752.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eff8cca4-adb4-481e-8159-a39d74be75b8/id-preview-b6851556--b7ff7fd2-912d-4f55-9443-d76e9f93ff8d.lovable.app-1777185628752.png" },
+      {
+        property: "og:title",
+        content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05",
+      },
+      {
+        name: "twitter:title",
+        content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Map informal-economy skills to ISCO-08, see automation risk and global opportunities. Built for the World Bank Unmapped challenge.",
+      },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

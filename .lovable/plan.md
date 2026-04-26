@@ -1,4 +1,3 @@
-
 ## Goal
 
 Strengthen the `/skills` page with a security/privacy checklist, power-user keyboard shortcuts, hardened import validation, a "drafts restored" banner, and a mobile-friendly persona selector — while keeping accessibility, persistence, and the elite dark UI from the v3 spec consistent.
@@ -19,6 +18,7 @@ The shared `bash.docx` (TalentGraph v3 elite spec) confirms the design tokens an
 - Skip slug keys whose value is empty after trim (don't pollute storage with empty drafts).
 
 **Caller change in `src/routes/skills.tsx`:** swap the `catch` block in `handleImportFile` to use `friendlyImportError(e)` so toasts say things like:
+
 - `"Invalid backup: drafts must be an object of slug → text"`
 - `"Invalid backup: file is not valid JSON"`
 - `"Backup version 2 is not supported (expected version 1)"`
@@ -85,6 +85,7 @@ A new collapsible card rendered below the OUTPUT column (or above the citations 
 ## 7) Files
 
 **New**
+
 - `src/components/RestoredBanner.tsx`
 - `src/components/SkillsPrivacyCard.tsx`
 - `src/hooks/useSkillsHotkeys.ts`
@@ -92,6 +93,7 @@ A new collapsible card rendered below the OUTPUT column (or above the citations 
 - `src/hooks/__tests__/useSkillsHotkeys.test.ts`
 
 **Edited**
+
 - `src/lib/skills-drafts.ts` — harden `DraftExportSchema`, add `friendlyImportError`, prototype-pollution stripping.
 - `src/routes/skills.tsx` — wire banner, hotkeys, privacy card, sticky `SavedIndicator`, scrollable persona strip; replace toast text in import catch with `friendlyImportError`.
 - `src/lib/__tests__/skills-drafts.test.ts` — extra cases.

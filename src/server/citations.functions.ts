@@ -53,9 +53,7 @@ const STATIC_CITATIONS: Citation[] = [
 ];
 
 export const getCitations = createServerFn({ method: "GET" })
-  .inputValidator((input: { countryCode?: string }) =>
-    CitationsInput.parse(input ?? {})
-  )
+  .inputValidator((input: { countryCode?: string }) => CitationsInput.parse(input ?? {}))
   .handler(async ({ data }): Promise<Citation[]> => {
     const sb = getSupabasePublic();
     const list: Citation[] = [...STATIC_CITATIONS];
@@ -63,9 +61,7 @@ export const getCitations = createServerFn({ method: "GET" })
     if (data.countryCode) {
       const { data: c } = await sb
         .from("countries")
-        .select(
-          "code,name,unemployment_source,wage_source,informal_source,hci_source"
-        )
+        .select("code,name,unemployment_source,wage_source,informal_source,hci_source")
         .eq("code", data.countryCode)
         .maybeSingle();
       if (c) {

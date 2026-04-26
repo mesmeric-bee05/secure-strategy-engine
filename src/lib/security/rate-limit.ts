@@ -36,9 +36,7 @@ export async function checkRateLimit(opts: RateLimitOptions): Promise<boolean> {
   });
   if (error) {
     console.error("rl_check failed", error);
-    // Fail-open on infra errors to avoid breaking the app entirely. The audit
-    // log captures the request anyway.
-    return true;
+    return false;
   }
   return data === true;
 }

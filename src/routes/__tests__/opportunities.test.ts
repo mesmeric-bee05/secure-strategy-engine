@@ -9,21 +9,15 @@ import {
 } from "@/routes/opportunities";
 
 describe("opportunities route — search & deps typing", () => {
-  it.each(COUNTRY_CODES)(
-    "parses valid country code %s without falling back",
-    (code) => {
-      const result = SearchSchema.parse({ country: code });
-      expect(result.country).toBe(code);
-    }
-  );
+  it.each(COUNTRY_CODES)("parses valid country code %s without falling back", (code) => {
+    const result = SearchSchema.parse({ country: code });
+    expect(result.country).toBe(code);
+  });
 
-  it.each(PERSONA_SLUGS)(
-    "parses valid persona slug %s without falling back",
-    (slug) => {
-      const result = SearchSchema.parse({ persona: slug });
-      expect(result.persona).toBe(slug);
-    }
-  );
+  it.each(PERSONA_SLUGS)("parses valid persona slug %s without falling back", (slug) => {
+    const result = SearchSchema.parse({ persona: slug });
+    expect(result.persona).toBe(slug);
+  });
 
   it("falls back to undefined for unknown country codes", () => {
     expect(SearchSchema.parse({ country: "ZZ" }).country).toBeUndefined();

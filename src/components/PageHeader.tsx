@@ -27,16 +27,12 @@ export function PageTitle({
 }) {
   return (
     <header className="mb-6">
-      {eyebrow && module ? (
-        <SectionEyebrow module={module}>{eyebrow}</SectionEyebrow>
-      ) : null}
+      {eyebrow && module ? <SectionEyebrow module={module}>{eyebrow}</SectionEyebrow> : null}
       <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-tx-0 md:text-[32px]">
         {children}
       </h1>
       {description ? (
-        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-tx-1">
-          {description}
-        </p>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-tx-1">{description}</p>
       ) : null}
     </header>
   );

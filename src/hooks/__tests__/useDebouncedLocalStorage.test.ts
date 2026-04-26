@@ -30,22 +30,24 @@ describe("useDebouncedLocalStorage — quota auto-retry", () => {
 
   it("transitions idle → saving → error → retrying → saved when value shrinks", async () => {
     let throwOnce = true;
-    setItemSpy = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(function (this: Storage, k: string, v: string) {
-        if (throwOnce) {
-          throwOnce = false;
-          throw new QuotaError();
-        }
-        // Fall back to default behaviour by writing into the underlying map.
-        Object.defineProperty(this, k, { value: v, configurable: true });
-      });
+    setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      k: string,
+      v: string,
+    ) {
+      if (throwOnce) {
+        throwOnce = false;
+        throw new QuotaError();
+      }
+      // Fall back to default behaviour by writing into the underlying map.
+      Object.defineProperty(this, k, { value: v, configurable: true });
+    });
 
     const big = "x".repeat(1000);
     const { result, rerender } = renderHook(
       ({ value }: { value: string }) =>
         useDebouncedLocalStorage("test:key", value, { delayMs: 100 }),
-      { initialProps: { value: big } }
+      { initialProps: { value: big } },
     );
 
     expect(result.current.status).toBe("idle");
@@ -75,16 +77,14 @@ describe("useDebouncedLocalStorage — quota auto-retry", () => {
   });
 
   it("does NOT retry when the value grows after a quota error", async () => {
-    setItemSpy = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(() => {
-        throw new QuotaError();
-      });
+    setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new QuotaError();
+    });
 
     const { result, rerender } = renderHook(
       ({ value }: { value: string }) =>
         useDebouncedLocalStorage("test:key", value, { delayMs: 50 }),
-      { initialProps: { value: "abc" } }
+      { initialProps: { value: "abc" } },
     );
 
     rerender({ value: "abcd" });

@@ -18,10 +18,19 @@ export function Sidebar() {
         <Persona emoji="🛒" name="Kwame, 26" sub="Trader · Accra, GH" />
       </SidebarSection>
 
+      <SidebarSection label="Security posture">
+        <SecurityItem label="Auth" status="active" detail="Supabase JWT + RLS" />
+        <SecurityItem label="Rate Limit" status="active" detail="Fail-closed" />
+        <SecurityItem label="Prompt Guard" status="active" detail="30+ patterns" />
+        <SecurityItem label="Audit Log" status="active" detail="Append-only" />
+        <SecurityItem label="CSP" status="active" detail="Strict policy" />
+        <SecurityItem label="HSTS" status="active" detail="Preload ready" />
+      </SidebarSection>
+
       <SidebarSection label="Data sources">
         <p className="text-[10px] leading-relaxed text-tx-1">
-          Frey & Osborne (2013) · ILO ILOSTAT · World Bank WDI · World Bank HCI ·
-          Wittgenstein Centre SSP2 · ISCO-08 · ESCO v1.1
+          Frey & Osborne (2013) · ILO ILOSTAT · World Bank WDI · World Bank HCI · Wittgenstein
+          Centre SSP2 · ISCO-08 · ESCO v1.1
         </p>
       </SidebarSection>
     </aside>
@@ -78,6 +87,7 @@ function Persona({
 }) {
   return (
     <button
+      type="button"
       className={[
         "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-all",
         active
@@ -93,5 +103,26 @@ function Persona({
         <span className="block text-[10px] leading-tight text-tx-2">{sub}</span>
       </span>
     </button>
+  );
+}
+
+function SecurityItem({
+  label,
+  status,
+  detail,
+}: {
+  label: string;
+  status: "active" | "warning" | "inactive";
+  detail: string;
+}) {
+  const dotColor = status === "active" ? "bg-teal" : status === "warning" ? "bg-gold" : "bg-coral";
+  return (
+    <div className="flex items-center justify-between py-1">
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+        <span className="text-[10.5px] text-tx-1">{label}</span>
+      </div>
+      <span className="font-mono text-[9px] text-tx-2">{detail}</span>
+    </div>
   );
 }

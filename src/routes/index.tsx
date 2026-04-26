@@ -100,10 +100,9 @@ function OverviewPage() {
             visible.
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-tx-1">
-            TalentGraph Africa maps informal-economy skills to ISO occupation
-            codes, surfaces real global opportunities, and anchors verified
-            credentials cryptographically — so a seamstress in Eldoret becomes
-            visible to an employer in London.
+            TalentGraph Africa maps informal-economy skills to ISO occupation codes, surfaces real
+            global opportunities, and anchors verified credentials cryptographically — so a
+            seamstress in Eldoret becomes visible to an employer in London.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -132,37 +131,26 @@ function OverviewPage() {
             <h2 className="font-display text-[14px] font-semibold tracking-tight text-tx-0">
               Country signals
             </h2>
-            <p className="text-[11px] text-tx-2">
-              Real figures · ILO ILOSTAT · World Bank WDI/HCI
-            </p>
+            <p className="text-[11px] text-tx-2">Real figures · ILO ILOSTAT · World Bank WDI/HCI</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {countries.map((c) => (
-              <div
-                key={c.code}
-                className="rounded-xl border border-border-soft bg-bg-3 p-3"
-              >
+              <div key={c.code} className="rounded-xl border border-border-soft bg-bg-3 p-3">
                 <div className="mb-2 flex items-center gap-2">
                   <span className="text-[18px]">{c.flag_emoji}</span>
-                  <span className="text-[12px] font-semibold text-tx-0">
-                    {c.name}
-                  </span>
+                  <span className="text-[12px] font-semibold text-tx-0">{c.name}</span>
                 </div>
                 <Stat label="Youth unemployment" tone="coral">
                   {fmtPct(c.youth_unemployment_pct)}
                 </Stat>
                 <Stat label="Min wage / mo" tone="gold">
-                  {c.min_wage_monthly_usd
-                    ? `$${Number(c.min_wage_monthly_usd).toFixed(0)}`
-                    : "—"}
+                  {c.min_wage_monthly_usd ? `$${Number(c.min_wage_monthly_usd).toFixed(0)}` : "—"}
                 </Stat>
                 <Stat label="Informal share" tone="lav">
                   {fmtPct(c.informal_share_pct)}
                 </Stat>
                 <Stat label="HCI" tone="teal">
-                  {c.human_capital_index
-                    ? Number(c.human_capital_index).toFixed(2)
-                    : "—"}
+                  {c.human_capital_index ? Number(c.human_capital_index).toFixed(2) : "—"}
                 </Stat>
               </div>
             ))}
@@ -195,12 +183,8 @@ function OverviewPage() {
                   <h3 className="font-display text-[18px] font-semibold leading-tight text-tx-0">
                     {m.title}
                   </h3>
-                  <p className="mt-2 text-[12.5px] leading-relaxed text-tx-1">
-                    {m.description}
-                  </p>
-                  <p className={`mt-3 text-[10.5px] font-medium ${tone.icon}`}>
-                    ✓ {m.bullet}
-                  </p>
+                  <p className="mt-2 text-[12.5px] leading-relaxed text-tx-1">{m.description}</p>
+                  <p className={`mt-3 text-[10.5px] font-medium ${tone.icon}`}>✓ {m.bullet}</p>
                   <span
                     className={`mt-4 inline-flex items-center gap-1 text-[11px] font-semibold ${tone.icon}`}
                   >
@@ -276,22 +260,12 @@ function Stat({
   return (
     <div className="flex items-center justify-between border-t border-border-soft py-1 first:border-t-0">
       <span className="text-[10px] text-tx-2">{label}</span>
-      <span className={`font-mono text-[11px] font-bold ${color}`}>
-        {children}
-      </span>
+      <span className={`font-mono text-[11px] font-bold ${color}`}>{children}</span>
     </div>
   );
 }
 
-function TrustItem({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
+function TrustItem({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
     <div className="rounded-xl border border-border-soft bg-bg-3 p-4">
       <div className="mb-1 flex items-center gap-2">

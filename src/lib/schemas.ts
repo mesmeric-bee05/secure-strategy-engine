@@ -28,12 +28,7 @@ export const SKILL_CATEGORY = z.enum([
   "service",
 ]);
 
-export const EVIDENCE_STRENGTH = z.enum([
-  "weak",
-  "moderate",
-  "strong",
-  "exceptional",
-]);
+export const EVIDENCE_STRENGTH = z.enum(["weak", "moderate", "strong", "exceptional"]);
 
 export const ExtractSkillsInput = z.object({
   text: z.string().min(8).max(4000),

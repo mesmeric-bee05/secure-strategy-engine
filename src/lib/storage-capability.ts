@@ -57,9 +57,7 @@ function classifyError(e: unknown): StorageReason {
   return "unknown";
 }
 
-export function probeStorage(
-  scope: "local" | "session" = "local"
-): StorageCapability {
+export function probeStorage(scope: "local" | "session" = "local"): StorageCapability {
   const testedAt = new Date().toISOString();
   const storage = pickStorage(scope);
   if (!storage) {

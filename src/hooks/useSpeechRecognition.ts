@@ -32,7 +32,7 @@ interface SpeechWindow {
 
 /** Safely resolve a SpeechRecognition constructor without leaking `any`. */
 export function getSpeechRecognitionCtor(
-  win: Window | undefined = typeof window !== "undefined" ? window : undefined
+  win: Window | undefined = typeof window !== "undefined" ? window : undefined,
 ): SpeechRecognitionCtor | null {
   if (!win) return null;
   const w = win as unknown as SpeechWindow;

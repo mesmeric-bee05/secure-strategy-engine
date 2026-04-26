@@ -31,9 +31,7 @@ export function RouteErrorBoundary({
     // eslint-disable-next-line no-console
     console.error(`[RouteError:${module}]`, error);
     const route =
-      typeof window !== "undefined"
-        ? window.location.pathname + window.location.search
-        : "ssr";
+      typeof window !== "undefined" ? window.location.pathname + window.location.search : "ssr";
     recordLastError({
       module,
       route,
@@ -91,9 +89,7 @@ export function RouteErrorBoundary({
           {error.message || "An unexpected error occurred."}
         </p>
         <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
-          <summary className="cursor-pointer text-tx-1">
-            Technical details
-          </summary>
+          <summary className="cursor-pointer text-tx-1">Technical details</summary>
           <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
             {error.stack ?? error.message}
           </pre>

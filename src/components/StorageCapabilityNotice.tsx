@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertOctagon, AlertTriangle, Info, RotateCw } from "lucide-react";
 
-import {
-  probeStorage,
-  type StorageCapability,
-} from "@/lib/storage-capability";
+import { probeStorage, type StorageCapability } from "@/lib/storage-capability";
 
 export interface StorageCapabilityNoticeProps {
   /** Called once on mount + on every Retry — receive the latest probe result. */
@@ -18,10 +15,7 @@ export interface StorageCapabilityNoticeProps {
  * (private mode), at quota, or near quota. Returns `null` in the healthy
  * case so the editor surface stays clean.
  */
-export function StorageCapabilityNotice({
-  onProbe,
-  onDownload,
-}: StorageCapabilityNoticeProps) {
+export function StorageCapabilityNotice({ onProbe, onDownload }: StorageCapabilityNoticeProps) {
   const [cap, setCap] = useState<StorageCapability | null>(null);
 
   useEffect(() => {
@@ -35,8 +29,7 @@ export function StorageCapabilityNotice({
   if (!cap) return null;
   if (cap.available && !cap.nearQuota) return null;
 
-  const reason: NonNullable<StorageCapability["reason"]> =
-    cap.reason ?? "unknown";
+  const reason: NonNullable<StorageCapability["reason"]> = cap.reason ?? "unknown";
 
   const headline =
     reason === "missing"
@@ -56,12 +49,7 @@ export function StorageCapabilityNotice({
           ? "We could write a small value but a 64KB test failed. Free space (Export old drafts, then delete unused personas) before typing more."
           : "We couldn't verify that drafts will persist. Save manually with Download my data to be safe.";
 
-  const Icon =
-    reason === "quota"
-      ? AlertTriangle
-      : reason === "missing"
-        ? Info
-        : AlertOctagon;
+  const Icon = reason === "quota" ? AlertTriangle : reason === "missing" ? Info : AlertOctagon;
 
   const tone =
     reason === "quota"

@@ -23,8 +23,13 @@ export const Route = createFileRoute("/credential/$id")({
   component: CredentialVerifyPage,
 });
 
+function sanitizeCredentialId(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 64);
+}
+
 function CredentialVerifyPage() {
-  const { id } = Route.useParams();
+  const { id: rawId } = Route.useParams();
+  const id = sanitizeCredentialId(rawId);
   const isPreview = id === "preview";
 
   return (
@@ -36,9 +41,7 @@ function CredentialVerifyPage() {
 
         <div className="rounded-2xl border border-gold/40 bg-gradient-to-br from-bg-2 to-bg-1 p-6 shadow-[0_0_30px_-10px_oklch(0.770_0.140_75/0.4)]">
           <div className="mb-3 flex items-center justify-between">
-            <span className="font-mono text-[10px] font-bold text-gold">
-              ◈ TalentGraph Africa
-            </span>
+            <span className="font-mono text-[10px] font-bold text-gold">◈ TalentGraph Africa</span>
             <span className="inline-flex items-center gap-1 rounded border border-teal/40 bg-teal-soft px-2 py-0.5 font-mono text-[9px] font-bold text-teal">
               <ShieldCheck className="h-3 w-3" /> Verified
             </span>
@@ -46,13 +49,10 @@ function CredentialVerifyPage() {
 
           {isPreview ? (
             <>
-              <p className="font-display text-[20px] font-bold text-tx-0">
-                Preview credential
-              </p>
+              <p className="font-display text-[20px] font-bold text-tx-0">Preview credential</p>
               <p className="mt-1 text-[12px] text-tx-2">
-                This is a non-issued preview shown from the Skills Engine.
-                Generate a real, signed credential by signing in and adding
-                three peer attestations.
+                This is a non-issued preview shown from the Skills Engine. Generate a real, signed
+                credential by signing in and adding three peer attestations.
               </p>
             </>
           ) : (
@@ -61,9 +61,9 @@ function CredentialVerifyPage() {
                 Credential <span className="font-mono text-gold">{id}</span>
               </p>
               <p className="mt-1 text-[12px] text-tx-2">
-                Live anchor lookup arrives with the trust layer in the next
-                iteration. The route, public RLS read policy, and
-                append-only `credential_anchors` table are already in place.
+                Live anchor lookup arrives with the trust layer in the next iteration. The route,
+                public RLS read policy, and append-only `credential_anchors` table are already in
+                place.
               </p>
             </>
           )}
