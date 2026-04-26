@@ -389,16 +389,7 @@ function SkillsPage() {
               : "")
         );
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          const issue = e.issues[0];
-          toast.error(
-            `Invalid backup file${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}`
-          );
-        } else {
-          toast.error(
-            e instanceof Error ? e.message : "Could not import file"
-          );
-        }
+        toast.error(friendlyImportError(e));
       }
     },
     [draftMap]
