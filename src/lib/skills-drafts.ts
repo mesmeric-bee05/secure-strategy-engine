@@ -76,6 +76,9 @@ export function unsavedCount(
 
 export const DRAFT_EXPORT_VERSION = 1;
 
+/** Hard cap on user-supplied import file size, enforced by the route layer. */
+export const MAX_IMPORT_FILE_BYTES = 1_000_000; // 1 MB
+
 /** Keys that must never appear in user-supplied JSON (prototype pollution). */
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -110,6 +113,93 @@ const SlugKey = z
     message: "forbidden key name",
   });
 
+/* -------------------------------------------------------------------------- */
+/* Safe-text content validation                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Patterns that we never want landing in localStorage even if structurally
+ * valid. We don't render imported text as HTML today, but defence-in-depth:
+ * if a future change ever sets innerHTML on a draft, this gate will block
+ * the obvious vectors.
+ */
+const UNSAFE_CONTENT_PATTERNS: ReadonlyArray<RegExp> = [
+  /<\s*script\b/i,
+  /<\s*iframe\b/i,
+  /<\s*object\b/i,
+  /<\s*embed\b/i,
+  /<\s*svg\b[^>]*\bon\w+\s*=/i,
+  /\bjavascript\s*:/i,
+  /\bdata\s*:\s*text\/html/i,
+  /\bon[a-z]+\s*=\s*["']?[^"'>]*["']?/i,
+];
+
+/**
+ * Throws when `text` is not "safe plain text" suitable for re-display:
+ *   - contains control characters other than \t \n \r
+ *   - matches an HTML/JS smuggling pattern
+ *   - decodes as binary (>1% non-printable bytes)
+ *
+ * Strict mode caps length at 20,000 chars (matches the schema cap).
+ */
+export function assertSafeText(text: unknown): asserts text is string {
+  if (typeof text !== "string") {
+    throw new SafeTextError("not a string");
+  }
+  if (text.length > 20_000) {
+    throw new SafeTextError("text exceeds 20,000 characters");
+  }
+  // Reject control chars except \t \n \r.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) {
+    throw new SafeTextError("contains control characters");
+  }
+  for (const re of UNSAFE_CONTENT_PATTERNS) {
+    if (re.test(text)) {
+      throw new SafeTextError("contains HTML/JS-like content");
+    }
+  }
+  // Binary heuristic — count non-printable bytes after stripping \t \n \r.
+  let nonPrintable = 0;
+  const cleaned = text.replace(/[\t\n\r]/g, "");
+  for (let i = 0; i < cleaned.length; i++) {
+    const c = cleaned.charCodeAt(i);
+    // Allow standard printable ASCII (0x20–0x7E) and any non-ASCII (≥ 0xA0).
+    // The 0x80–0x9F range and other low control chars are flagged above.
+    if (!((c >= 0x20 && c <= 0x7e) || c >= 0xa0)) nonPrintable += 1;
+  }
+  if (cleaned.length > 0 && nonPrintable / cleaned.length > 0.01) {
+    throw new SafeTextError("looks like binary data");
+  }
+}
+
+/** Sentinel error so callers can branch on content rejections. */
+export class SafeTextError extends Error {
+  override readonly name = "SafeTextError";
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+const SafeText = (maxLen: number) =>
+  z
+    .string()
+    .max(maxLen)
+    .superRefine((val, ctx) => {
+      try {
+        assertSafeText(val);
+      } catch (e) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            e instanceof SafeTextError
+              ? `unsafe content: ${e.message}`
+              : "unsafe content",
+          params: { unsafeContent: true },
+        });
+      }
+    });
+
 const PlainStringRecord = (maxLen: number) =>
   z
     .unknown()
@@ -117,7 +207,7 @@ const PlainStringRecord = (maxLen: number) =>
       message: "must be a plain object of slug → string",
     })
     .transform((v) => stripForbiddenKeys(v as Record<string, unknown>))
-    .pipe(z.record(SlugKey, z.string().max(maxLen)));
+    .pipe(z.record(SlugKey, SafeText(maxLen)));
 
 export const DraftExportSchema = z
   .object({
