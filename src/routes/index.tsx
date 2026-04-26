@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Sparkles, ShieldCheck, BarChart3, Globe2 } from "lucide-react";
+import {
+  ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  BarChart3,
+  Globe2,
+  LockKeyhole,
+} from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
@@ -68,6 +75,16 @@ const MODULES = [
     description:
       "Real ILO econometric signals · Honest, grounded matching · Dual interface: Youth + Policymaker",
     bullet: "ILO ILOSTAT wages · World Bank WDI · Sector growth data",
+  },
+  {
+    num: "04",
+    to: "/security" as const,
+    title: "Security & Trust Layer",
+    color: "lav" as const,
+    icon: LockKeyhole,
+    description:
+      "Prompt-injection guard, rate limiting, append-only audit logs, signed credentials, and fairness review controls",
+    bullet: "Zero PII in logs · ECDSA attestations · CSP + RLS controls",
   },
 ];
 
@@ -174,7 +191,7 @@ function OverviewPage() {
           <PageTitle module="Product" eyebrow="Three modules">
             What you'll explore
           </PageTitle>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {MODULES.map((m) => {
               const Icon = m.icon;
               const tone = TONE_CLASSES[m.color];
@@ -253,6 +270,11 @@ const TONE_CLASSES = {
     border: "border-coral/30",
     chip: "border-coral/40 bg-coral-soft text-coral",
     icon: "text-coral",
+  },
+  lav: {
+    border: "border-lavender/30",
+    chip: "border-lavender/40 bg-lavender-soft text-lavender",
+    icon: "text-lavender",
   },
 };
 
