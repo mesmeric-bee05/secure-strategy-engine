@@ -27,10 +27,7 @@ import { LastErrorPanel } from "@/components/LastErrorPanel";
 import { RestoredBanner } from "@/components/RestoredBanner";
 import { SkillsPrivacyCard } from "@/components/SkillsPrivacyCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import {
-  useDebouncedLocalStorage,
-  type PersistStatus,
-} from "@/hooks/useDebouncedLocalStorage";
+import { useDebouncedLocalStorage, type PersistStatus } from "@/hooks/useDebouncedLocalStorage";
 import { useSkillsHotkeys } from "@/hooks/useSkillsHotkeys";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
@@ -48,6 +45,10 @@ import {
   readJSONMap,
   unsavedCount,
 } from "@/lib/skills-drafts";
+import { publicVerifyUrl, whatsAppShareUrl } from "@/lib/credentials";
+import { StorageCapabilityNotice } from "@/components/StorageCapabilityNotice";
+import { SkillsAuditLog } from "@/components/SkillsAuditLog";
+import { appendAuditEvent } from "@/lib/skills-audit";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 
@@ -60,8 +61,7 @@ export const Route = createFileRoute("/skills")({
   head: () => ({
     meta: [
       {
-        title:
-          "Skills Signal Engine — Map informal skills to ISCO-08 · TalentGraph",
+        title: "Skills Signal Engine — Map informal skills to ISCO-08 · TalentGraph",
       },
       {
         name: "description",
@@ -91,11 +91,7 @@ export const Route = createFileRoute("/skills")({
   },
   errorComponent: ({ error, reset }) => (
     <AppShell>
-      <RouteErrorBoundary
-        error={error}
-        reset={reset}
-        module="Skills Signal Engine"
-      />
+      <RouteErrorBoundary error={error} reset={reset} module="Skills Signal Engine" />
     </AppShell>
   ),
   component: SkillsPage,
@@ -140,10 +136,10 @@ function SkillsPage() {
   // without mounting the route.
 
   const [draftMap, setDraftMap] = useState<Record<string, string>>(() =>
-    readJSONMap<string>(DRAFT_MAP_KEY, LEGACY_DRAFT_KEY)
+    readJSONMap<string>(DRAFT_MAP_KEY, LEGACY_DRAFT_KEY),
   );
   const [langMap, setLangMap] = useState<Record<string, SpeechLang>>(() =>
-    readJSONMap<SpeechLang>(LANG_MAP_KEY, LEGACY_LANG_KEY)
+    readJSONMap<SpeechLang>(LANG_MAP_KEY, LEGACY_LANG_KEY),
   );
 
   const [persona, setPersona] = useState<string | undefined>(search.persona);
@@ -180,18 +176,16 @@ function SkillsPage() {
   // user is about to switch personas with unsaved edits.
   const savedSnapshotRef = useRef<Record<string, string>>({ ...draftMap });
   // Mirror the snapshot into state so unsaved badges re-render in sync.
-  const [savedSnapshot, setSavedSnapshot] = useState<Record<string, string>>(
-    () => ({ ...draftMap })
-  );
+  const [savedSnapshot, setSavedSnapshot] = useState<Record<string, string>>(() => ({
+    ...draftMap,
+  }));
 
   // Debounced persistence for the entire draft map — exposes status for the
   // "Saved" pill. We serialize on the whole map so a single quota error covers
   // all personas.
-  const persist = useDebouncedLocalStorage(
-    DRAFT_MAP_KEY,
-    JSON.stringify(draftMap),
-    { delayMs: 500 }
-  );
+  const persist = useDebouncedLocalStorage(DRAFT_MAP_KEY, JSON.stringify(draftMap), {
+    delayMs: 500,
+  });
 
   // Once persistence settles, the current map IS the saved snapshot.
   useEffect(() => {
@@ -207,7 +201,7 @@ function SkillsPage() {
 
   const pendingCount = useMemo(
     () => unsavedCount(draftMap, savedSnapshot),
-    [draftMap, savedSnapshot]
+    [draftMap, savedSnapshot],
   );
 
   function switchPersona(nextSlug: string) {
@@ -217,7 +211,7 @@ function SkillsPage() {
         typeof window === "undefined"
           ? true
           : window.confirm(
-              "You have unsaved changes in the current persona's draft. Switch anyway? Your draft will be kept and restored when you return."
+              "You have unsaved changes in the current persona's draft. Switch anyway? Your draft will be kept and restored when you return.",
             );
       if (!ok) return;
     }
@@ -249,9 +243,7 @@ function SkillsPage() {
       const incoming = res.result.skills;
       setSkills([]);
       setOverallConfidence(res.result.overall_confidence);
-      incoming.forEach((s, i) =>
-        setTimeout(() => setSkills((prev) => [...prev, s]), i * 90)
-      );
+      incoming.forEach((s, i) => setTimeout(() => setSkills((prev) => [...prev, s]), i * 90));
       if (res.warnings.length) {
         toast.message(res.warnings.join(" · "));
       } else {
@@ -284,11 +276,7 @@ function SkillsPage() {
     });
   }
 
-  function onPersonaKeyDown(
-    e: React.KeyboardEvent<HTMLButtonElement>,
-    idx: number,
-    slug: string
-  ) {
+  function onPersonaKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, idx: number, slug: string) {
     switch (e.key) {
       case "ArrowRight":
       case "ArrowDown":
@@ -338,6 +326,12 @@ function SkillsPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       const n = Object.keys(payload.drafts).length;
+      const filename = exportFilename();
+      appendAuditEvent({
+        kind: "export",
+        summary: `Exported ${n} draft${n === 1 ? "" : "s"}`,
+        detail: { filename, slugCount: n, bytes: blob.size },
+      });
       toast.success(`Exported ${n} draft${n === 1 ? "" : "s"}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Export failed");
@@ -351,20 +345,16 @@ function SkillsPage() {
         const json: unknown = JSON.parse(raw);
         const parsed = parseImport(json);
         const incomingSlugs = Object.keys(parsed.drafts);
-        const overlap = incomingSlugs.filter(
-          (s) => (draftMap[s] ?? "").trim().length > 0
-        );
+        const overlap = incomingSlugs.filter((s) => (draftMap[s] ?? "").trim().length > 0);
         const ok =
           typeof window === "undefined"
             ? true
             : window.confirm(
-                `Import ${incomingSlugs.length} draft${
-                  incomingSlugs.length === 1 ? "" : "s"
-                }? ${
+                `Import ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}? ${
                   overlap.length > 0
                     ? `${overlap.length} will overwrite existing drafts (${overlap.join(", ")}).`
                     : "No existing drafts will be overwritten."
-                }`
+                }`,
               );
         if (!ok) return;
         setDraftMap((prev) => ({ ...prev, ...parsed.drafts }));
@@ -372,27 +362,40 @@ function SkillsPage() {
           const updated = { ...prev, ...parsed.languages };
           if (typeof window !== "undefined") {
             try {
-              window.localStorage.setItem(
-                LANG_MAP_KEY,
-                JSON.stringify(updated)
-              );
+              window.localStorage.setItem(LANG_MAP_KEY, JSON.stringify(updated));
             } catch {
               /* noop */
             }
           }
           return updated;
         });
+        appendAuditEvent({
+          kind: "import",
+          summary: `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}${
+            overlap.length ? ` (overwrote ${overlap.length})` : ""
+          }`,
+          detail: {
+            filename: file.name,
+            slugCount: incomingSlugs.length,
+            bytes: file.size,
+          },
+        });
         toast.success(
           `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}` +
             (parsed.droppedLanguages.length
               ? ` (skipped ${parsed.droppedLanguages.length} unknown language${parsed.droppedLanguages.length === 1 ? "" : "s"})`
-              : "")
+              : ""),
         );
       } catch (e) {
+        appendAuditEvent({
+          kind: "import_rejected",
+          summary: friendlyImportError(e),
+          detail: { filename: file.name, bytes: file.size },
+        });
         toast.error(friendlyImportError(e));
       }
     },
-    [draftMap]
+    [draftMap],
   );
 
   // ---------------------------------------------------------------------------
@@ -401,7 +404,7 @@ function SkillsPage() {
   // Snapshot the count of non-empty drafts present at mount time so the banner
   // reflects what was rehydrated, not what the user has typed since.
   const restoredCountRef = useRef<number>(
-    Object.values(draftMap).filter((v) => (v ?? "").trim().length > 0).length
+    Object.values(draftMap).filter((v) => (v ?? "").trim().length > 0).length,
   );
   const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
@@ -430,18 +433,15 @@ function SkillsPage() {
   const cyclePersona = useCallback(
     (direction: 1 | -1) => {
       if (personas.length === 0) return;
-      const currentIdx = persona
-        ? personas.findIndex((p) => p.slug === persona)
-        : -1;
+      const currentIdx = persona ? personas.findIndex((p) => p.slug === persona) : -1;
       const baseIdx = currentIdx === -1 ? 0 : currentIdx;
       const nextIdx =
-        ((baseIdx + direction) % personas.length + personas.length) %
-        personas.length;
+        (((baseIdx + direction) % personas.length) + personas.length) % personas.length;
       switchPersona(personas[nextIdx].slug);
     },
     // switchPersona depends on draftMap/personas; including persona keeps cycling correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [persona, personas, draftMap]
+    [persona, personas, draftMap],
   );
 
   useSkillsHotkeys({
@@ -463,11 +463,26 @@ function SkillsPage() {
         </PageTitle>
 
         {!bannerDismissed && (
-          <RestoredBanner
-            count={restoredCountRef.current}
-            onDismiss={dismissRestoredBanner}
-          />
+          <RestoredBanner count={restoredCountRef.current} onDismiss={dismissRestoredBanner} />
         )}
+
+        <StorageCapabilityNotice
+          onDownload={handleExport}
+          onProbe={(cap) => {
+            if (!cap.available) {
+              appendAuditEvent({
+                kind:
+                  cap.reason === "denied"
+                    ? "privacy_blocked"
+                    : cap.reason === "quota"
+                      ? "quota_blocked"
+                      : "privacy_blocked",
+                summary: `Storage probe failed (${cap.reason ?? "unknown"})`,
+                detail: { reason: cap.reason ?? undefined },
+              });
+            }
+          }}
+        />
 
         <LastErrorPanel moduleFilter="Skills" />
 
@@ -557,8 +572,8 @@ function SkillsPage() {
                       </li>
                     </ul>
                     <p className="mt-2 text-[10px] text-tx-2">
-                      Alt+Arrow is suppressed while typing in the editor so
-                      caret-jump-by-word still works.
+                      Alt+Arrow is suppressed while typing in the editor so caret-jump-by-word still
+                      works.
                     </p>
                   </div>
                 </details>
@@ -596,10 +611,9 @@ function SkillsPage() {
                 )}
               </div>
               <p id="persona-instructions" className="sr-only">
-                Use left and right arrow keys to navigate personas, Enter or
-                Space to select. Home and End jump to the first or last
-                persona. From anywhere on the page, hold Alt and press the
-                left or right arrow key to cycle personas.
+                Use left and right arrow keys to navigate personas, Enter or Space to select. Home
+                and End jump to the first or last persona. From anywhere on the page, hold Alt and
+                press the left or right arrow key to cycle personas.
               </p>
               <div
                 role="radiogroup"
@@ -617,8 +631,7 @@ function SkillsPage() {
                     : unsaved
                       ? "unsaved"
                       : "saved";
-                  const tabIndex =
-                    active || (!persona && idx === 0) ? 0 : -1;
+                  const tabIndex = active || (!persona && idx === 0) ? 0 : -1;
                   return (
                     <button
                       key={p.slug}
@@ -649,16 +662,12 @@ function SkillsPage() {
                     >
                       <span aria-hidden="true">{p.emoji}</span>
                       <span>{p.display_name}</span>
-                      <span className="text-[10px] text-tx-2">
-                        · {p.occupation}
-                      </span>
+                      <span className="text-[10px] text-tx-2">· {p.occupation}</span>
                       {status !== "none" && (
                         <span
                           aria-hidden="true"
                           title={
-                            status === "unsaved"
-                              ? "Unsaved changes"
-                              : "Saved to local storage"
+                            status === "unsaved" ? "Unsaved changes" : "Saved to local storage"
                           }
                           className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                             status === "unsaved"
@@ -689,14 +698,22 @@ function SkillsPage() {
                   type="button"
                   onClick={voice.toggle}
                   disabled={!voice.supported}
-                  title={voice.supported ? "Speak your skills" : "Voice capture not supported in this browser"}
+                  title={
+                    voice.supported
+                      ? "Speak your skills"
+                      : "Voice capture not supported in this browser"
+                  }
                   className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-[11px] font-medium transition ${
                     voice.listening
                       ? "anim-pulse-coral border-coral/50 bg-coral-soft text-coral"
                       : "border-border-strong bg-transparent text-tx-1 hover:border-gold-glow hover:bg-gold-soft hover:text-gold"
                   } ${!voice.supported ? "cursor-not-allowed opacity-50" : ""}`}
                 >
-                  {voice.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {voice.listening ? (
+                    <MicOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Mic className="h-3.5 w-3.5" />
+                  )}
                   {voice.listening ? "Stop" : "Speak"}
                 </button>
                 <select
@@ -773,10 +790,10 @@ function SkillsPage() {
 
             <p className="mt-3 rounded-md border border-border-soft bg-bg-3 px-3 py-2 text-[10.5px] leading-relaxed text-tx-2">
               <span className="text-tx-1">🔑</span> Skill extraction uses{" "}
-              <strong className="text-tx-0">Lovable AI · google/gemini-3-flash-preview</strong>{" "}
-              with structured tool-calling. Output mapped to{" "}
-              <strong className="text-tx-0">ISCO-08</strong> (ILO 4-digit codes)
-              and <strong className="text-tx-0">ESCO v1.1</strong>.
+              <strong className="text-tx-0">Lovable AI · google/gemini-3-flash-preview</strong> with
+              structured tool-calling. Output mapped to{" "}
+              <strong className="text-tx-0">ISCO-08</strong> (ILO 4-digit codes) and{" "}
+              <strong className="text-tx-0">ESCO v1.1</strong>.
             </p>
           </div>
 
@@ -793,13 +810,8 @@ function SkillsPage() {
             <IscoMappingTable skills={skills} loading={mutation.isPending} />
             {skills.length > 0 && (
               <CredentialCardPreview
-                personaName={
-                  personas.find((p) => p.slug === persona)?.display_name ??
-                  "Anonymous"
-                }
-                location={
-                  personas.find((p) => p.slug === persona)?.location ?? ""
-                }
+                personaName={personas.find((p) => p.slug === persona)?.display_name ?? "Anonymous"}
+                location={personas.find((p) => p.slug === persona)?.location ?? ""}
                 skills={skills}
                 overallConfidence={overallConfidence}
               />
@@ -808,6 +820,7 @@ function SkillsPage() {
         </div>
 
         <SkillsPrivacyCard />
+        <SkillsAuditLog />
 
         <CitationsPanel citations={citationsQ.data ?? []} />
       </div>
@@ -851,8 +864,21 @@ function SkillConstellation({ skills }: { skills: SkillRow[] }) {
           />
         ))}
         {/* center */}
-        <circle cx={cx} cy={cy} r={18} fill="oklch(0.770 0.140 75 / 0.18)" stroke="oklch(0.770 0.140 75)" strokeWidth={1.5} />
-        <text x={cx} y={cy + 4} textAnchor="middle" className="fill-gold" style={{ fontSize: 10, fontFamily: "Space Mono", fontWeight: 700 }}>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={18}
+          fill="oklch(0.770 0.140 75 / 0.18)"
+          stroke="oklch(0.770 0.140 75)"
+          strokeWidth={1.5}
+        />
+        <text
+          x={cx}
+          y={cy + 4}
+          textAnchor="middle"
+          className="fill-gold"
+          style={{ fontSize: 10, fontFamily: "Space Mono", fontWeight: 700 }}
+        >
           YOU
         </text>
         {/* nodes */}
@@ -860,15 +886,34 @@ function SkillConstellation({ skills }: { skills: SkillRow[] }) {
           const color = CATEGORY_COLOR[p.s.category];
           return (
             <g key={`n-${i}`} className="anim-fade-in" style={{ animationDelay: `${i * 90}ms` }}>
-              <circle cx={p.x} cy={p.y} r={6 + p.s.proficiency_level / 1.5} fill={color} fillOpacity={0.85} stroke={color} strokeWidth={1} />
-              <text x={p.x} y={p.y + 22} textAnchor="middle" className="fill-tx-0" style={{ fontSize: 9, fontFamily: "DM Sans" }}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={6 + p.s.proficiency_level / 1.5}
+                fill={color}
+                fillOpacity={0.85}
+                stroke={color}
+                strokeWidth={1}
+              />
+              <text
+                x={p.x}
+                y={p.y + 22}
+                textAnchor="middle"
+                className="fill-tx-0"
+                style={{ fontSize: 9, fontFamily: "DM Sans" }}
+              >
                 {truncate(p.s.skill_name, 18)}
               </text>
             </g>
           );
         })}
         {skills.length === 0 && (
-          <text x={cx} y={cy + 50} textAnchor="middle" style={{ fontSize: 10, fill: "oklch(0.500 0.035 255)" }}>
+          <text
+            x={cx}
+            y={cy + 50}
+            textAnchor="middle"
+            style={{ fontSize: 10, fill: "oklch(0.500 0.035 255)" }}
+          >
             Map your skills to populate the constellation
           </text>
         )}
@@ -902,7 +947,10 @@ function IscoMappingTable({ skills, loading }: { skills: SkillRow[]; loading: bo
         <thead>
           <tr className="border-b border-border-soft">
             {["Skill", "ISCO-08", "ESCO", "Category", "Level", "Conf"].map((h) => (
-              <th key={h} className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.07em] text-tx-2">
+              <th
+                key={h}
+                className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.07em] text-tx-2"
+              >
                 {h}
               </th>
             ))}
@@ -924,7 +972,11 @@ function IscoMappingTable({ skills, loading }: { skills: SkillRow[]; loading: bo
             </tr>
           )}
           {skills.map((s, i) => (
-            <tr key={i} className="anim-fade-in border-b border-border-soft last:border-b-0 hover:bg-gold-soft" style={{ animationDelay: `${i * 90}ms` }}>
+            <tr
+              key={i}
+              className="anim-fade-in border-b border-border-soft last:border-b-0 hover:bg-gold-soft"
+              style={{ animationDelay: `${i * 90}ms` }}
+            >
               <td className="px-3 py-2 text-[12px] text-tx-0">{s.skill_name}</td>
               <td className="px-3 py-2 font-mono text-[10px] font-bold text-gold">{s.isco_code}</td>
               <td className="px-3 py-2 font-mono text-[9px] text-tx-2">{s.esco_code ?? "—"}</td>
@@ -932,12 +984,17 @@ function IscoMappingTable({ skills, loading }: { skills: SkillRow[]; loading: bo
               <td className="px-3 py-2">
                 <div className="flex items-center gap-2">
                   <div className="h-1 w-12 rounded bg-border">
-                    <div className="h-1 rounded bg-gradient-to-r from-teal to-gold" style={{ width: `${s.proficiency_level * 10}%` }} />
+                    <div
+                      className="h-1 rounded bg-gradient-to-r from-teal to-gold"
+                      style={{ width: `${s.proficiency_level * 10}%` }}
+                    />
                   </div>
                   <span className="font-mono text-[10px] text-tx-1">{s.proficiency_level}</span>
                 </div>
               </td>
-              <td className="px-3 py-2 font-mono text-[10px] text-tx-1">{(s.confidence * 100).toFixed(0)}%</td>
+              <td className="px-3 py-2 font-mono text-[10px] text-tx-1">
+                {(s.confidence * 100).toFixed(0)}%
+              </td>
             </tr>
           ))}
         </tbody>
@@ -963,6 +1020,23 @@ function CredentialCardPreview({
   const top = skills.slice(0, 3);
   const fingerprint = useMemo(() => fakeHash(skills.map((s) => s.skill_name).join("|")), [skills]);
 
+  function handleWhatsAppShare() {
+    // Until the user has signed in and an anchor has been issued, we link
+    // them to the preview verifier so the recipient still sees a real
+    // TalentGraph credential page rather than a 404.
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const verifyUrl = publicVerifyUrl("preview", origin);
+    const url = whatsAppShareUrl(verifyUrl, personaName);
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    appendAuditEvent({
+      kind: "data_download",
+      summary: `Shared preview credential for ${personaName} via WhatsApp`,
+      detail: { slugCount: top.length },
+    });
+  }
+
   return (
     <div className="mt-4 rounded-2xl border border-gold/40 bg-gradient-to-br from-bg-2 to-bg-1 p-5 shadow-[0_0_30px_-10px_oklch(0.770_0.140_75/0.4)]">
       <div className="mb-2 flex items-center justify-between">
@@ -975,7 +1049,10 @@ function CredentialCardPreview({
       <p className="text-[11px] text-tx-2">{location}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {top.map((s) => (
-          <span key={s.skill_name} className="rounded-full border border-gold-glow bg-gold-soft px-2 py-0.5 text-[10px] font-medium text-gold">
+          <span
+            key={s.skill_name}
+            className="rounded-full border border-gold-glow bg-gold-soft px-2 py-0.5 text-[10px] font-medium text-gold"
+          >
             {s.skill_name} · L{s.proficiency_level}
           </span>
         ))}
@@ -1004,8 +1081,9 @@ function CredentialCardPreview({
         </Link>
         <button
           type="button"
-          onClick={() => toast.info("WhatsApp share is wired in the next iteration.")}
-          className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-3 py-1.5 text-[11px] text-tx-1 hover:bg-bg-4"
+          onClick={handleWhatsAppShare}
+          aria-label={`Share preview credential for ${personaName} via WhatsApp`}
+          className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-3 py-1.5 text-[11px] text-tx-1 transition hover:border-gold-glow hover:bg-bg-4 hover:text-gold"
         >
           <Share2 className="h-3 w-3" />
           Share via WhatsApp
@@ -1027,13 +1105,7 @@ function fakeHash(input: string): string {
 /* -------------------------------------------------------------------------- */
 /* Saved indicator                                                            */
 /* -------------------------------------------------------------------------- */
-function SavedIndicator({
-  status,
-  error,
-}: {
-  status: PersistStatus;
-  error: string | null;
-}) {
+function SavedIndicator({ status, error }: { status: PersistStatus; error: string | null }) {
   const announcement =
     status === "saving"
       ? "Saving draft to local storage"
@@ -1109,6 +1181,3 @@ function SavedIndicator({
     </span>
   );
 }
-
-
-
