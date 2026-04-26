@@ -147,11 +147,10 @@ function SecurityPage() {
                 Built for judges to inspect, and partners to trust
               </h2>
               <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-tx-1">
-                The prototype already uses structured schemas, server-side rate
-                limits, prompt sanitization, RLS-backed Supabase tables, hashed
-                audit identifiers, credential anchors, and explainable
-                econometric citations. The architecture is ready to extend into
-                passkeys, SMS OTP, KMS-backed signing, and on-chain settlement.
+                The prototype already uses structured schemas, server-side rate limits, prompt
+                sanitization, RLS-backed Supabase tables, hashed audit identifiers, credential
+                anchors, and explainable econometric citations. The architecture is ready to extend
+                into passkeys, SMS OTP, KMS-backed signing, and on-chain settlement.
               </p>
             </div>
             <div className="grid shrink-0 gap-1 rounded-xl border border-teal/30 bg-bg-3 px-4 py-3 text-[10.5px] text-tx-1">
@@ -254,23 +253,19 @@ function Metric({
         <span className={toneText(tone)}>{icon}</span>
       </div>
       <p className="text-[10px] uppercase tracking-[0.08em] text-tx-2">{label}</p>
-      <p className={`mt-1 font-mono text-[18px] font-bold ${toneText(tone)}`}>
-        {value}
-      </p>
+      <p className={`mt-1 font-mono text-[18px] font-bold ${toneText(tone)}`}>{value}</p>
     </div>
   );
 }
 
-function ControlCard({
-  control,
-}: {
-  control: (typeof CONTROLS)[number];
-}) {
+function ControlCard({ control }: { control: (typeof CONTROLS)[number] }) {
   return (
     <article className="rounded-xl border border-border-soft bg-bg-4 p-3">
       <div className="mb-1 flex items-center justify-between gap-3">
         <h3 className="text-[12px] font-semibold text-tx-0">{control.title}</h3>
-        <span className={`rounded-full px-2 py-0.5 font-mono text-[9px] font-bold ${toneBg(control.tone)} ${toneText(control.tone)}`}>
+        <span
+          className={`rounded-full px-2 py-0.5 font-mono text-[9px] font-bold ${toneBg(control.tone)} ${toneText(control.tone)}`}
+        >
           {control.status}
         </span>
       </div>

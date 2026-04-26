@@ -33,8 +33,7 @@ export const Route = createFileRoute("/readiness")({
   head: () => ({
     meta: [
       {
-        title:
-          "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
+        title: "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
       },
       {
         name: "description",
@@ -79,8 +78,7 @@ function ReadinessPage() {
 
   const persona = PERSONA_DATA[search.persona];
   const fallbackCountry = STATIC_COUNTRIES[search.country];
-  const country =
-    countriesQ.data?.find((c) => c.code === search.country) ?? fallbackCountry;
+  const country = countriesQ.data?.find((c) => c.code === search.country) ?? fallbackCountry;
   const calibration =
     "lmic_calibration" in country && country.lmic_calibration
       ? Number(country.lmic_calibration)
@@ -98,13 +96,12 @@ function ReadinessPage() {
           durable: calibratedRisk < 0.35,
         };
       }),
-    [persona.skills, calibration]
+    [persona.skills, calibration],
   );
   const compositeRisk =
     riskRows.reduce((sum, row) => sum + row.calibratedRisk * row.weight, 0) /
     riskRows.reduce((sum, row) => sum + row.weight, 0);
-  const band =
-    compositeRisk < 0.35 ? "low" : compositeRisk < 0.6 ? "moderate" : "high";
+  const band = compositeRisk < 0.35 ? "low" : compositeRisk < 0.6 ? "moderate" : "high";
   const projection = WITTGENSTEIN[search.country];
 
   return (
@@ -179,11 +176,10 @@ function ReadinessPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-gold/25 bg-gold-soft p-3 text-[11.5px] leading-relaxed text-tx-1">
-              <strong className="text-gold">Calibration note:</strong> Frey &
-              Osborne scores are adjusted downward in LMIC contexts because task
-              bundles, lower capital intensity, and infrastructure constraints
-              slow near-term automation. The country multiplier is visible so
-              the risk is explainable, not a black box.
+              <strong className="text-gold">Calibration note:</strong> Frey & Osborne scores are
+              adjusted downward in LMIC contexts because task bundles, lower capital intensity, and
+              infrastructure constraints slow near-term automation. The country multiplier is
+              visible so the risk is explainable, not a black box.
             </div>
           </div>
 
@@ -214,8 +210,7 @@ function ReadinessPage() {
                   Wittgenstein SSP2 · 2025-2035
                 </h2>
                 <p className="mt-1 text-[11.5px] text-tx-2">
-                  Share of the 25-34 population by highest education level in{" "}
-                  {country.name}.
+                  Share of the 25-34 population by highest education level in {country.name}.
                 </p>
               </div>
               <GraduationCap className="h-5 w-5 text-teal" />
@@ -264,9 +259,9 @@ function ReadinessPage() {
                 Pair the risk lens with the skills passport
               </h2>
               <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-tx-1">
-                Run the Skills Engine first, then use this page as the roadmap:
-                validate durable skills, choose one adjacent digital skill, and
-                share the credential with an employer or training partner.
+                Run the Skills Engine first, then use this page as the roadmap: validate durable
+                skills, choose one adjacent digital skill, and share the credential with an employer
+                or training partner.
               </p>
             </div>
             <a
@@ -668,12 +663,8 @@ function RiskGauge({ value, band }: { value: number; band: Band }) {
       >
         <div className="grid h-32 w-32 place-items-center rounded-full border border-border-soft bg-bg-2 text-center">
           <div>
-            <p className={`font-mono text-[34px] font-bold ${bandColor(band, "text")}`}>
-              {pct}%
-            </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-tx-2">
-              {band} risk
-            </p>
+            <p className={`font-mono text-[34px] font-bold ${bandColor(band, "text")}`}>{pct}%</p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-tx-2">{band} risk</p>
           </div>
         </div>
       </div>
@@ -690,7 +681,8 @@ function RiskGauge({ value, band }: { value: number; band: Band }) {
 
 function RiskRow({ row }: { row: RiskRowData }) {
   const pct = Math.round(row.calibratedRisk * 100);
-  const band: Band = row.calibratedRisk < 0.35 ? "low" : row.calibratedRisk < 0.6 ? "moderate" : "high";
+  const band: Band =
+    row.calibratedRisk < 0.35 ? "low" : row.calibratedRisk < 0.6 ? "moderate" : "high";
   return (
     <article className="rounded-xl border border-border-soft bg-bg-4 p-3">
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -700,15 +692,10 @@ function RiskRow({ row }: { row: RiskRowData }) {
             ISCO-{row.isco} · {row.category} · Level {row.level}/10
           </p>
         </div>
-        <span className={`font-mono text-[13px] font-bold ${bandColor(band, "text")}`}>
-          {pct}%
-        </span>
+        <span className={`font-mono text-[13px] font-bold ${bandColor(band, "text")}`}>{pct}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-bg-2">
-        <div
-          className={bandColor(band, "bg")}
-          style={{ width: `${pct}%`, height: "100%" }}
-        />
+        <div className={bandColor(band, "bg")} style={{ width: `${pct}%`, height: "100%" }} />
       </div>
       <div className="mt-2 flex items-start gap-2 text-[10.5px] leading-relaxed text-tx-1">
         {row.durable ? (
@@ -717,8 +704,7 @@ function RiskRow({ row }: { row: RiskRowData }) {
           <BrainCircuit className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
         )}
         <span>
-          {row.note} Base {Math.round(row.baseRisk * 100)}% → LMIC-calibrated{" "}
-          {pct}%.
+          {row.note} Base {Math.round(row.baseRisk * 100)}% → LMIC-calibrated {pct}%.
         </span>
       </div>
     </article>
@@ -736,8 +722,7 @@ function Signal({
   tone: "gold" | "teal" | "coral";
   note: string;
 }) {
-  const color =
-    tone === "gold" ? "text-gold" : tone === "teal" ? "text-teal" : "text-coral";
+  const color = tone === "gold" ? "text-gold" : tone === "teal" ? "text-teal" : "text-coral";
   return (
     <div className="rounded-xl border border-border-soft bg-bg-4 p-3">
       <p className="text-[10px] text-tx-2">{label}</p>
@@ -778,11 +763,7 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-function AdjacentCard({
-  item,
-}: {
-  item: { skill: string; impact: string; desc: string };
-}) {
+function AdjacentCard({ item }: { item: { skill: string; impact: string; desc: string } }) {
   return (
     <article className="rounded-xl border border-border-soft bg-bg-4 p-3 transition hover:border-teal/40">
       <div className="mb-1 flex items-center justify-between gap-3">
@@ -809,9 +790,7 @@ function PathwayStep({
         <span className="grid h-8 w-8 place-items-center rounded-full bg-gold-soft font-mono text-[12px] font-bold text-gold">
           {idx + 1}
         </span>
-        <h3 className="font-display text-[14px] font-semibold text-tx-0">
-          {step.title}
-        </h3>
+        <h3 className="font-display text-[14px] font-semibold text-tx-0">{step.title}</h3>
       </div>
       <p className="flex items-center gap-2 text-[11px] font-medium text-teal">
         <BookOpen className="h-3.5 w-3.5" />
@@ -822,10 +801,7 @@ function PathwayStep({
   );
 }
 
-function bandColor(
-  band: Band,
-  mode: "text" | "bg" | "icon" | "raw"
-): string {
+function bandColor(band: Band, mode: "text" | "bg" | "icon" | "raw"): string {
   const map = {
     low: {
       text: "text-teal",

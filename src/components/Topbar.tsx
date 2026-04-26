@@ -33,8 +33,7 @@ export function Topbar() {
 
       <nav className="ml-4 flex items-center gap-px">
         {NAV.map((item) => {
-          const active =
-            item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+          const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
           return (
             <Link
               key={item.to}
