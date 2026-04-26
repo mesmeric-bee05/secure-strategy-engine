@@ -14,6 +14,7 @@ import {
   Download,
   Upload,
   RotateCw,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -23,11 +24,14 @@ import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { LastErrorPanel } from "@/components/LastErrorPanel";
+import { RestoredBanner } from "@/components/RestoredBanner";
+import { SkillsPrivacyCard } from "@/components/SkillsPrivacyCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
   useDebouncedLocalStorage,
   type PersistStatus,
 } from "@/hooks/useDebouncedLocalStorage";
+import { useSkillsHotkeys } from "@/hooks/useSkillsHotkeys";
 import { extractSkills, listPersonas } from "@/server/skills.functions";
 import { getCitations } from "@/server/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
@@ -38,11 +42,14 @@ import {
   LEGACY_LANG_KEY,
   buildExport,
   exportFilename,
+  friendlyImportError,
   hasUnsavedChanges as hasUnsavedChangesPure,
   parseImport,
   readJSONMap,
   unsavedCount,
 } from "@/lib/skills-drafts";
+
+const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 
 const SearchSchema = z.object({
   persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
