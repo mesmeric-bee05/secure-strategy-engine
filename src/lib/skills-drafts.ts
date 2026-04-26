@@ -76,12 +76,57 @@ export function unsavedCount(
 
 export const DRAFT_EXPORT_VERSION = 1;
 
-export const DraftExportSchema = z.object({
-  version: z.literal(DRAFT_EXPORT_VERSION),
-  exportedAt: z.string(),
-  drafts: z.record(z.string(), z.string()),
-  languages: z.record(z.string(), z.string()).default({}),
-});
+/** Keys that must never appear in user-supplied JSON (prototype pollution). */
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Returns true only for objects whose prototype is `Object.prototype` —
+ * rejects arrays, Maps, Dates, and class instances even when they would
+ * structurally satisfy a `Record<string, string>` zod schema.
+ */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object") return false;
+  if (Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+/** Strip prototype-pollution keys from a record before validation. */
+function stripForbiddenKeys<T>(rec: Record<string, T>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    if (!FORBIDDEN_KEYS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+/** Slug keys: short, alphanumeric+`-_`, never empty, never prototype-pollution. */
+const SlugKey = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-zA-Z0-9_-]+$/, "slug must be alphanumeric (with - or _)")
+  .refine((k) => !FORBIDDEN_KEYS.has(k), {
+    message: "forbidden key name",
+  });
+
+const PlainStringRecord = (maxLen: number) =>
+  z
+    .unknown()
+    .refine(isPlainObject, {
+      message: "must be a plain object of slug → string",
+    })
+    .transform((v) => stripForbiddenKeys(v as Record<string, unknown>))
+    .pipe(z.record(SlugKey, z.string().max(maxLen)));
+
+export const DraftExportSchema = z
+  .object({
+    version: z.literal(DRAFT_EXPORT_VERSION),
+    exportedAt: z.string(),
+    drafts: PlainStringRecord(20_000),
+    languages: PlainStringRecord(16).default({}),
+  })
+  .strict();
 export type DraftExport = z.infer<typeof DraftExportSchema>;
 
 export interface BuildExportInput {
