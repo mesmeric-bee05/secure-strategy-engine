@@ -2,6 +2,25 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
+/**
+ * Minimal Web Storage adapter that prefers `sessionStorage` (cleared on tab
+ * close) and falls back to `localStorage` if the user explicitly opted into
+ * "remember me" by setting `talentgraph:auth:remember = "1"` somewhere.
+ *
+ * Defence in depth — a stored access token in sessionStorage is still
+ * exposed to any same-origin script that runs in the page. Strong CSP +
+ * never echoing user-supplied HTML are the primary mitigations.
+ */
+function safeStorage(): Storage | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const remember = window.localStorage.getItem("talentgraph:auth:remember") === "1";
+    return remember ? window.localStorage : window.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
@@ -17,7 +36,7 @@ function createSupabaseClient() {
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
-      storage: typeof window !== "undefined" ? localStorage : undefined,
+      storage: safeStorage(),
       persistSession: true,
       autoRefreshToken: true,
     },

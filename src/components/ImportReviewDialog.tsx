@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, FileText } from "lucide-react";
 
 import {
@@ -47,8 +47,12 @@ export function ImportReviewDialog({
 }: ImportReviewDialogProps) {
   const [staged, setStaged] = useState<StagedRow[]>(rows);
 
-  // Reset when the parent re-stages (new file batch).
-  useMemo(() => setStaged(rows), [rows]);
+  // Reset when the parent re-stages (new file batch). useEffect, not useMemo:
+  // useMemo must be a pure computation; setState inside a memo can fire twice
+  // in StrictMode and mid-render, both of which trigger React warnings.
+  useEffect(() => {
+    setStaged(rows);
+  }, [rows]);
 
   const applyCount = staged.filter((r) => r.action !== "keep").length;
 

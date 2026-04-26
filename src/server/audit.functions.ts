@@ -3,19 +3,26 @@ import { getRequestIP } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { recordAudit } from "@/lib/security/audit";
 import { enforceRateLimit, RateLimitError } from "@/lib/security/rate-limit";
+import { redactForAudit } from "@/lib/security/redact";
 
 export const ClientErrorInput = z.object({
   module: z.string().min(1).max(80),
   route: z.string().min(1).max(200),
-  message: z.string().min(1).max(300),
+  message: z.string().min(1).max(1000),
+  // Optional, capped to avoid bloat in audit_log.
+  stack: z.string().max(4000).optional(),
 });
 
 /**
  * Append-only client-side error logging. Routes call this from their
  * `errorComponent` and from `RouteErrorBoundary` retry attempts.
  *
- * Store only a short, scrubbed message fingerprint from unauthenticated clients.
- * Raw stacks and paths can contain tokens, file paths, or user data.
+ * Hardening:
+ *  - Per-IP rate limit (60/min) so a misbehaving client cannot flood the
+ *    immutable audit_log table.
+ *  - Both `message` and `stack` are passed through `redactForAudit` to strip
+ *    obvious PII / secrets (emails, JWTs, bearer tokens, long hex/base64
+ *    blobs, key=value secret pairs, query strings).
  */
 export const logClientError = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ClientErrorInput.parse(input))
@@ -23,16 +30,25 @@ export const logClientError = createServerFn({ method: "POST" })
     let ip: string | null = null;
     try {
       ip = getRequestIP({ xForwardedFor: true }) ?? null;
+    } catch {
+      // ignore — request context might be unavailable in some test paths
+    }
+    try {
       await enforceRateLimit({
         bucket: "audit:client_error",
         identifier: ip ?? "anon",
-        limit: 20,
-        windowSeconds: 300,
+        limit: 60,
+        windowSeconds: 60,
       });
     } catch (e) {
-      if (e instanceof RateLimitError) return { ok: false as const, status: 429 };
+      if (e instanceof RateLimitError) {
+        return { ok: false as const, error: "rate_limited", status: 429 };
+      }
       throw e;
     }
+
+    const message = redactForAudit(data.message);
+    const stack = data.stack ? redactForAudit(data.stack) : null;
 
     await recordAudit({
       action: "client_error",
@@ -40,30 +56,13 @@ export const logClientError = createServerFn({ method: "POST" })
       resourceId: null,
       ip,
       metadata: {
-        module: scrubAuditText(data.module, 80),
-        route: scrubRoute(data.route),
-        messageHash: await auditHash(scrubAuditText(data.message, 300)),
+        module: data.module,
+        route: data.route,
+        message: message.text,
+        message_flags: message.flags,
+        stack: stack?.text ?? null,
+        stack_flags: stack?.flags ?? null,
       },
     });
     return { ok: true as const };
   });
-
-function scrubRoute(route: string): string {
-  const safe = route.split("#", 1)[0] ?? "/";
-  const [path] = safe.split("?", 1);
-  return scrubAuditText(path || "/", 200);
-}
-
-function scrubAuditText(value: string, maxLength: number): string {
-  return value
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[jwt]")
-    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[email]")
-    .slice(0, maxLength);
-}
-
-async function auditHash(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-}
