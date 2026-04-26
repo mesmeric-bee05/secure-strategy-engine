@@ -15,19 +15,19 @@ describe("RestoredBanner", () => {
     render(<RestoredBanner count={1} onDismiss={() => {}} />);
     expect(
       screen.getByText(/1 draft restored from this browser/i)
-    ).toBeInTheDocument();
+    ).toBeTruthy();
   });
 
   it("uses plural copy for >1", () => {
     render(<RestoredBanner count={3} onDismiss={() => {}} />);
     expect(
       screen.getByText(/3 drafts restored from this browser/i)
-    ).toBeInTheDocument();
+    ).toBeTruthy();
   });
 
   it("has role=status for assistive tech", () => {
     render(<RestoredBanner count={2} onDismiss={() => {}} />);
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeTruthy();
   });
 
   it("invokes onDismiss when the close button is clicked", () => {

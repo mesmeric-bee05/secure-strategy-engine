@@ -8,16 +8,16 @@ function dispatchKey(init: KeyboardEventInit) {
 }
 
 describe("useSkillsHotkeys", () => {
-  let onExport: ReturnType<typeof vi.fn>;
-  let onImport: ReturnType<typeof vi.fn>;
-  let onPrev: ReturnType<typeof vi.fn>;
-  let onNext: ReturnType<typeof vi.fn>;
+  let onExport: ReturnType<typeof vi.fn<() => void>>;
+  let onImport: ReturnType<typeof vi.fn<() => void>>;
+  let onPrev: ReturnType<typeof vi.fn<() => void>>;
+  let onNext: ReturnType<typeof vi.fn<() => void>>;
 
   beforeEach(() => {
-    onExport = vi.fn();
-    onImport = vi.fn();
-    onPrev = vi.fn();
-    onNext = vi.fn();
+    onExport = vi.fn<() => void>();
+    onImport = vi.fn<() => void>();
+    onPrev = vi.fn<() => void>();
+    onNext = vi.fn<() => void>();
   });
 
   afterEach(() => {
