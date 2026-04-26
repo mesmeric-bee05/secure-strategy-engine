@@ -10,20 +10,32 @@
  * site — this is defense in depth, not a complete defense.
  */
 
-const INJECTION_PATTERNS: readonly RegExp[] = [
-  /ignore\s+(?:previous|prior|above|all)\s+(?:instructions?|prompts?|rules?)/gi,
-  /disregard\s+(?:previous|prior|above|all)\s+(?:instructions?|prompts?|rules?)/gi,
-  /forget\s+(?:everything|all|previous|prior)\b/gi,
-  /you\s+are\s+now\s+(?:a|an|the)?/gi,
-  /act\s+as\s+(?:a|an|the)\s+/gi,
-  /pretend\s+to\s+be\s+/gi,
-  /jailbreak/gi,
-  /system\s+prompt/gi,
-  /\[\s*INST\s*\]/gi,
-  /\[\s*\/?\s*SYSTEM\s*\]/gi,
-  /<\|.*?\|>/g,
-  /###\s*(?:instruction|system|new\s+instructions?)/gi,
-  /developer\s+mode/gi,
+interface InjectionPattern {
+  /** Stable name used in audit-log flags. NEVER include user text here. */
+  name: string;
+  re: RegExp;
+}
+
+const INJECTION_PATTERNS: readonly InjectionPattern[] = [
+  {
+    name: "ignore_prior",
+    re: /ignore\s+(?:previous|prior|above|all)\s+(?:instructions?|prompts?|rules?)/gi,
+  },
+  {
+    name: "disregard_prior",
+    re: /disregard\s+(?:previous|prior|above|all)\s+(?:instructions?|prompts?|rules?)/gi,
+  },
+  { name: "forget_prior", re: /forget\s+(?:everything|all|previous|prior)\b/gi },
+  { name: "you_are_now", re: /you\s+are\s+now\s+(?:a|an|the)?/gi },
+  { name: "act_as", re: /act\s+as\s+(?:a|an|the)\s+/gi },
+  { name: "pretend_to_be", re: /pretend\s+to\s+be\s+/gi },
+  { name: "jailbreak", re: /jailbreak/gi },
+  { name: "system_prompt", re: /system\s+prompt/gi },
+  { name: "inst_tag", re: /\[\s*INST\s*\]/gi },
+  { name: "system_tag", re: /\[\s*\/?\s*SYSTEM\s*\]/gi },
+  { name: "chatml_tag", re: /<\|.*?\|>/g },
+  { name: "instruction_heading", re: /###\s*(?:instruction|system|new\s+instructions?)/gi },
+  { name: "developer_mode", re: /developer\s+mode/gi },
 ];
 
 // Zero-width / bidi / control characters frequently used to smuggle prompts.
@@ -46,10 +58,10 @@ export function sanitizeUserPrompt(input: string): GuardResult {
     flags.push("zero-width-stripped");
   }
 
-  for (const pat of INJECTION_PATTERNS) {
-    if (pat.test(cleaned)) {
-      cleaned = cleaned.replace(pat, "[redacted]");
-      flags.push(`pattern:${pat.source.slice(0, 32)}`);
+  for (const { name, re } of INJECTION_PATTERNS) {
+    if (re.test(cleaned)) {
+      cleaned = cleaned.replace(re, "[redacted]");
+      flags.push(`pattern:${name}`);
     }
   }
 
