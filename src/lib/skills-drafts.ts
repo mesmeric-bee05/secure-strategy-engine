@@ -293,6 +293,9 @@ export function friendlyImportError(e: unknown): string {
   if (e instanceof SyntaxError) {
     return "Invalid backup: file is not valid JSON";
   }
+  if (e instanceof SafeTextError) {
+    return `Invalid backup: ${e.message}`;
+  }
   if (e instanceof z.ZodError) {
     const issue = e.issues[0];
     if (!issue) return "Invalid backup: unrecognised shape";
@@ -303,6 +306,11 @@ export function friendlyImportError(e: unknown): string {
     }
     if (issue.path[0] === "version") {
       return `Backup version is not supported (expected version ${DRAFT_EXPORT_VERSION})`;
+    }
+    // Unsafe content surfaced via SafeText superRefine.
+    const params = (issue as z.ZodIssue & { params?: { unsafeContent?: boolean } }).params;
+    if (params?.unsafeContent) {
+      return `Invalid backup at ${path}: ${issue.message}`;
     }
     if (issue.path[0] === "drafts" && issue.path.length === 1) {
       return "Invalid backup: drafts must be an object of slug → text";
@@ -319,4 +327,121 @@ export function friendlyImportError(e: unknown): string {
     return `Could not import file: ${e.message}`;
   }
   return "Could not import file";
+}
+
+/* -------------------------------------------------------------------------- */
+/* Local-data dump (human-readable, distinct from re-importable Export)        */
+/* -------------------------------------------------------------------------- */
+
+export interface LocalDataDumpInput {
+  drafts: Record<string, string>;
+  languages: Record<string, string>;
+  /** Per-persona "saved snapshot" so we can flag unsaved-at-export-time. */
+  savedSnapshot?: Record<string, string>;
+  /** Test seam — defaults to `new Date()`. */
+  now?: Date;
+  /** Build/version label injected by the route from `import.meta.env`. */
+  appVersion?: string;
+}
+
+export interface LocalDataDumpPersona {
+  slug: string;
+  charCount: number;
+  lastSavedLanguage: string | null;
+  unsavedAtExportTime: boolean;
+  /** First 80 chars of the draft for human inspection. Always plain text. */
+  preview: string;
+  /** Full draft text. */
+  text: string;
+}
+
+export interface LocalDataDump {
+  generatedAt: string;
+  app: "TalentGraph Africa — Skills";
+  appVersion: string;
+  schema: {
+    version: 1;
+    format: "talentgraph.local-data.v1";
+    /** Re-import path: this file is NOT a re-importable export. */
+    reImportable: false;
+  };
+  storage: Record<
+    string,
+    { scope: "localStorage"; bytes: number; keys: number; value: Record<string, string> }
+  >;
+  personas: LocalDataDumpPersona[];
+  notes: string[];
+}
+
+function bytesOf(value: unknown): number {
+  try {
+    return new Blob([JSON.stringify(value)]).size;
+  } catch {
+    return 0;
+  }
+}
+
+export function buildLocalDataDump({
+  drafts,
+  languages,
+  savedSnapshot,
+  now = new Date(),
+  appVersion = "preview",
+}: LocalDataDumpInput): LocalDataDump {
+  const slugs = Array.from(
+    new Set([...Object.keys(drafts), ...Object.keys(languages)])
+  ).sort();
+  const personas: LocalDataDumpPersona[] = slugs.map((slug) => {
+    const text = drafts[slug] ?? "";
+    return {
+      slug,
+      charCount: text.length,
+      lastSavedLanguage: languages[slug] ?? null,
+      unsavedAtExportTime: savedSnapshot
+        ? hasUnsavedChanges(drafts, savedSnapshot, slug)
+        : false,
+      preview: text.slice(0, 80),
+      text,
+    };
+  });
+  return {
+    generatedAt: now.toISOString(),
+    app: "TalentGraph Africa — Skills",
+    appVersion,
+    schema: {
+      version: 1,
+      format: "talentgraph.local-data.v1",
+      reImportable: false,
+    },
+    storage: {
+      [DRAFT_MAP_KEY]: {
+        scope: "localStorage",
+        bytes: bytesOf(drafts),
+        keys: Object.keys(drafts).length,
+        value: drafts,
+      },
+      [LANG_MAP_KEY]: {
+        scope: "localStorage",
+        bytes: bytesOf(languages),
+        keys: Object.keys(languages).length,
+        value: languages,
+      },
+    },
+    notes: [
+      "This file is a human-readable snapshot of the data this app stores on YOUR device.",
+      "It is NOT the re-importable backup — use the Export button for that.",
+      "No information is sent to any server when you generate this file.",
+      `Generated at ${now.toISOString()}.`,
+    ],
+  };
+}
+
+export function localDataFilename(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  const hh = String(now.getUTCHours()).padStart(2, "0");
+  const mm = String(now.getUTCMinutes()).padStart(2, "0");
+  const ss = String(now.getUTCSeconds()).padStart(2, "0");
+  return `talentgraph-skills-local-data-${y}${m}${d}-${hh}${mm}${ss}.json`;
 }
