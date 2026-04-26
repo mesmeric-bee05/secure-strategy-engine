@@ -639,7 +639,7 @@ function SkillsPage() {
                             ? "saved draft"
                             : "no draft yet"
                       }${active ? ", currently selected" : ""}`}
-                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
+                      className={`flex shrink-0 snap-start items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow ${
                         active
                           ? "border-gold bg-gold-soft text-gold"
                           : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
