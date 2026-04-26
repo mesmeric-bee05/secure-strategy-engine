@@ -395,6 +395,61 @@ function SkillsPage() {
     [draftMap]
   );
 
+  // ---------------------------------------------------------------------------
+  // Restored-from-storage banner
+  // ---------------------------------------------------------------------------
+  // Snapshot the count of non-empty drafts present at mount time so the banner
+  // reflects what was rehydrated, not what the user has typed since.
+  const restoredCountRef = useRef<number>(
+    Object.values(draftMap).filter((v) => (v ?? "").trim().length > 0).length
+  );
+  const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.sessionStorage.getItem(RESTORED_BANNER_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const dismissRestoredBanner = useCallback(() => {
+    setBannerDismissed(true);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(RESTORED_BANNER_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Page-level keyboard shortcuts
+  // ---------------------------------------------------------------------------
+  // Cycle to the next/previous persona using Alt+Arrow; reuses the existing
+  // switchPersona() flow (which honours the unsaved-changes confirm prompt).
+  const cyclePersona = useCallback(
+    (direction: 1 | -1) => {
+      if (personas.length === 0) return;
+      const currentIdx = persona
+        ? personas.findIndex((p) => p.slug === persona)
+        : -1;
+      const baseIdx = currentIdx === -1 ? 0 : currentIdx;
+      const nextIdx =
+        ((baseIdx + direction) % personas.length + personas.length) %
+        personas.length;
+      switchPersona(personas[nextIdx].slug);
+    },
+    // switchPersona depends on draftMap/personas; including persona keeps cycling correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [persona, personas, draftMap]
+  );
+
+  useSkillsHotkeys({
+    onExport: handleExport,
+    onImport: () => importInputRef.current?.click(),
+    onPrevPersona: () => cyclePersona(-1),
+    onNextPersona: () => cyclePersona(1),
+  });
 
   return (
     <AppShell>
