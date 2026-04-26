@@ -1,31 +1,25 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
-import {
-  ArrowRight,
-  BookOpen,
-  BrainCircuit,
-  CheckCircle2,
-  Gauge,
-  GraduationCap,
-  ShieldAlert,
-  Sparkles,
-  Target,
-} from "lucide-react";
-
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useRef, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
+import { useQuery } from "@tanstack/react-query";
 import { getCitations } from "@/server/citations.functions";
 import { listCountries } from "@/server/opportunities.functions";
-
-const PERSONAS = ["sarah", "james", "amara", "kwame"] as const;
-const COUNTRIES = ["KE", "GH", "NG", "ZA", "RW"] as const;
+import {
+  ArrowRight,
+  BookOpen,
+  Shield,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
+import { z } from "zod";
 
 const SearchSchema = z.object({
-  persona: z.enum(PERSONAS).default("sarah").catch("sarah"),
-  country: z.enum(COUNTRIES).default("KE").catch("KE"),
+  persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
+  country: z.string().length(2).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/readiness")({
@@ -53,56 +47,367 @@ export const Route = createFileRoute("/readiness")({
   }),
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery({
-      queryKey: ["countries"],
-      queryFn: () => listCountries(),
-    });
-    void context.queryClient.prefetchQuery({
       queryKey: ["citations", null],
       queryFn: () => getCitations({ data: {} }),
+    });
+    void context.queryClient.prefetchQuery({
+      queryKey: ["countries"],
+      queryFn: () => listCountries(),
     });
   },
   component: ReadinessPage,
 });
 
+/* ── Frey-Osborne automation probabilities by ISCO-08 4-digit code ── */
+const FREY_OSBORNE: Record<string, number> = {
+  "7531": 0.57,
+  "7318": 0.62,
+  "5223": 0.92,
+  "7411": 0.57,
+  "7421": 0.51,
+  "5230": 0.65,
+  "3322": 0.45,
+  "6111": 0.54,
+  "6121": 0.6,
+  "1439": 0.16,
+  "2521": 0.25,
+  "3142": 0.35,
+  "7516": 0.63,
+  "3331": 0.59,
+  "4321": 0.72,
+  "2643": 0.38,
+  "2431": 0.67,
+  "2359": 0.03,
+  "3152": 0.41,
+  "8322": 0.86,
+  "2166": 0.21,
+  "5141": 0.33,
+};
+
+const LMIC_CALIBRATION: Record<string, number> = {
+  KE: 0.78,
+  GH: 0.8,
+  NG: 0.72,
+  RW: 0.7,
+  ZA: 0.85,
+};
+const DEFAULT_LMIC_FACTOR = 0.78;
+
+/* ── Persona skill seeds — maps to ISCO codes ── */
+interface PersonaSkillSeed {
+  name: string;
+  emoji: string;
+  country: string;
+  skills: Array<{
+    name: string;
+    isco: string;
+    category: string;
+    level: number;
+  }>;
+  adjacentSkills: Array<{
+    name: string;
+    impact: string;
+    desc: string;
+    isco?: string;
+  }>;
+  resources: Array<{
+    name: string;
+    provider: string;
+    duration: string;
+    cost: string;
+  }>;
+}
+
+const PERSONA_SEEDS: Record<string, PersonaSkillSeed> = {
+  sarah: {
+    name: "Sarah, 22",
+    emoji: "🧵",
+    country: "KE",
+    skills: [
+      { name: "Garment construction & tailoring", isco: "7531", category: "trade", level: 9 },
+      { name: "Hand embroidery & beadwork", isco: "7318", category: "creative", level: 9 },
+      { name: "Pattern making & design", isco: "7531", category: "technical", level: 8 },
+      { name: "Small business management", isco: "1439", category: "business", level: 6 },
+      { name: "Customer negotiation", isco: "3322", category: "interpersonal", level: 7 },
+    ],
+    adjacentSkills: [
+      {
+        name: "Digital pattern design (CAD)",
+        impact: "+34%",
+        desc: "Lectra, Optitex — remote-compatible, high demand from export garment sector",
+        isco: "2166",
+      },
+      {
+        name: "E-commerce operations",
+        impact: "+28%",
+        desc: "Sell on Jumia, Kilimall, Etsy. +22.5%/yr growth in Sub-Saharan Africa",
+      },
+      {
+        name: "Quality control & audit",
+        impact: "+41%",
+        desc: "ISCO-3152. Requires human tactile judgment — highly durable across automation cycles",
+        isco: "3152",
+      },
+      {
+        name: "Small business finance",
+        impact: "+22%",
+        desc: "Bookkeeping, M-Pesa business accounts, microfinance navigation",
+      },
+    ],
+    resources: [
+      {
+        name: "Lectra Academy — Pattern Design",
+        provider: "Lectra",
+        duration: "Self-paced",
+        cost: "Free trial",
+      },
+      { name: "Jumia Seller Academy", provider: "Jumia", duration: "2 weeks", cost: "Free" },
+      {
+        name: "Google Digital Skills for Africa",
+        provider: "Google",
+        duration: "Self-paced",
+        cost: "Free",
+      },
+    ],
+  },
+  james: {
+    name: "James, 28",
+    emoji: "🔧",
+    country: "KE",
+    skills: [
+      { name: "Smartphone & tablet repair", isco: "7421", category: "technical", level: 9 },
+      { name: "Micro-soldering & board repair", isco: "7421", category: "technical", level: 8 },
+      { name: "Data recovery", isco: "2521", category: "digital", level: 7 },
+      { name: "Shop operations & management", isco: "1439", category: "business", level: 6 },
+      { name: "Self-directed learning", isco: "2359", category: "interpersonal", level: 8 },
+    ],
+    adjacentSkills: [
+      {
+        name: "CompTIA A+ Certification",
+        impact: "+38%",
+        desc: "Formal credential unlocks corporate helpdesk and IT support roles",
+      },
+      {
+        name: "Android ROM development",
+        impact: "+31%",
+        desc: "Software side — remote gig work, XDA Developers community",
+      },
+      {
+        name: "IoT device servicing",
+        impact: "+26%",
+        desc: "Growing market in smart home, security systems — leverages existing soldering skills",
+      },
+      {
+        name: "Technical training delivery",
+        impact: "+19%",
+        desc: "Train other technicians — ISCO-2359, lowest automation risk of any occupation",
+      },
+    ],
+    resources: [
+      {
+        name: "Professor Messer — CompTIA A+",
+        provider: "Professor Messer",
+        duration: "Self-paced",
+        cost: "Free",
+      },
+      {
+        name: "ALX Africa — Software Engineering",
+        provider: "ALX",
+        duration: "12 months",
+        cost: "Free (scholarship)",
+      },
+      {
+        name: "XDA Developers — ROM Development",
+        provider: "XDA",
+        duration: "Self-paced",
+        cost: "Free",
+      },
+    ],
+  },
+  amara: {
+    name: "Amara, 34",
+    emoji: "🌾",
+    country: "NG",
+    skills: [
+      { name: "Smallholder crop production", isco: "6111", category: "agriculture", level: 8 },
+      { name: "Agricultural cooperative leadership", isco: "1439", category: "business", level: 8 },
+      { name: "Post-harvest processing", isco: "7516", category: "trade", level: 7 },
+      { name: "Soil testing & agronomy", isco: "3142", category: "technical", level: 6 },
+      { name: "Training & knowledge transfer", isco: "2359", category: "interpersonal", level: 7 },
+    ],
+    adjacentSkills: [
+      {
+        name: "Digital farm record keeping",
+        impact: "+32%",
+        desc: "WeFarm, FarmDrive — cooperative becomes investable, unlocks microfinance",
+      },
+      {
+        name: "Export market standards (GLOBALG.A.P)",
+        impact: "+44%",
+        desc: "Access EU export premiums for certified produce — huge salary uplift",
+      },
+      {
+        name: "Precision agriculture basics",
+        impact: "+27%",
+        desc: "Soil sensors, drone monitoring — growing adoption in Nigeria",
+      },
+      {
+        name: "Value chain coordination",
+        impact: "+23%",
+        desc: "Market linkage, buyer negotiation — builds on existing cooperative skills",
+      },
+    ],
+    resources: [
+      {
+        name: "WeFarm — Digital Farming",
+        provider: "WeFarm",
+        duration: "Self-paced",
+        cost: "Free (SMS & app)",
+      },
+      {
+        name: "FAO e-learning — Good Agricultural Practices",
+        provider: "FAO",
+        duration: "6 weeks",
+        cost: "Free",
+      },
+      {
+        name: "Coursera — Financial Accounting",
+        provider: "University of Illinois",
+        duration: "Self-paced",
+        cost: "Free (audit)",
+      },
+    ],
+  },
+  kwame: {
+    name: "Kwame, 26",
+    emoji: "🛒",
+    country: "GH",
+    skills: [
+      {
+        name: "International trade & import operations",
+        isco: "3322",
+        category: "business",
+        level: 8,
+      },
+      { name: "Customs clearance & logistics", isco: "3331", category: "technical", level: 8 },
+      { name: "Inventory & stock management", isco: "4321", category: "technical", level: 7 },
+      { name: "Multilingual communication", isco: "2643", category: "interpersonal", level: 7 },
+      { name: "Social commerce & marketing", isco: "2431", category: "digital", level: 6 },
+    ],
+    adjacentSkills: [
+      {
+        name: "Formal customs brokerage license",
+        impact: "+36%",
+        desc: "Ghana Revenue Authority — unlock B2B contracts with major importers",
+      },
+      {
+        name: "Supply chain management",
+        impact: "+33%",
+        desc: "Coursera (Rutgers) — transition from trader to supply chain professional",
+      },
+      {
+        name: "Digital marketing certification",
+        impact: "+25%",
+        desc: "Google Ads, Meta Business Suite — scale social commerce professionally",
+      },
+      {
+        name: "Trade finance & letters of credit",
+        impact: "+29%",
+        desc: "Banking relationships — access larger import volumes",
+      },
+    ],
+    resources: [
+      {
+        name: "Coursera — Supply Chain Management",
+        provider: "Rutgers University",
+        duration: "Self-paced",
+        cost: "Free (audit)",
+      },
+      {
+        name: "Google Digital Skills for Africa",
+        provider: "Google",
+        duration: "Self-paced",
+        cost: "Free",
+      },
+      {
+        name: "ILO Skills Academy — Labor Standards",
+        provider: "ILO",
+        duration: "4 weeks",
+        cost: "Free",
+      },
+    ],
+  },
+};
+
+/* ── Wittgenstein Centre SSP2 education projections ── */
+const WITTGENSTEIN: Record<string, { primary: number[]; secondary: number[]; tertiary: number[] }> =
+  {
+    KE: {
+      primary: [38, 36, 34, 31, 29],
+      secondary: [46, 48, 50, 52, 53],
+      tertiary: [16, 16, 16, 17, 18],
+    },
+    GH: {
+      primary: [32, 30, 28, 26, 24],
+      secondary: [52, 53, 54, 56, 57],
+      tertiary: [16, 17, 18, 18, 19],
+    },
+    NG: {
+      primary: [45, 43, 40, 37, 35],
+      secondary: [44, 45, 47, 49, 51],
+      tertiary: [11, 12, 13, 14, 14],
+    },
+    RW: {
+      primary: [41, 39, 36, 33, 30],
+      secondary: [51, 53, 55, 58, 60],
+      tertiary: [8, 8, 9, 9, 10],
+    },
+    ZA: {
+      primary: [18, 17, 15, 14, 13],
+      secondary: [55, 56, 57, 58, 58],
+      tertiary: [27, 27, 28, 28, 29],
+    },
+  };
+const PROJ_YEARS = [2025, 2027, 2029, 2031, 2035];
+
 function ReadinessPage() {
   const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const countriesQ = useQuery({
-    queryKey: ["countries"],
-    queryFn: () => listCountries(),
-  });
+  const selectedPersona = search.persona ?? "sarah";
+  const persona = PERSONA_SEEDS[selectedPersona] ?? PERSONA_SEEDS.sarah;
+  const countryCode = search.country ?? persona.country;
+  const lmicFactor = LMIC_CALIBRATION[countryCode] ?? DEFAULT_LMIC_FACTOR;
+
   const citationsQ = useQuery({
     queryKey: ["citations", null],
     queryFn: () => getCitations({ data: {} }),
   });
+  const countriesQ = useQuery({
+    queryKey: ["countries"],
+    queryFn: () => listCountries(),
+  });
 
-  const persona = PERSONA_DATA[search.persona];
-  const fallbackCountry = STATIC_COUNTRIES[search.country];
-  const country = countriesQ.data?.find((c) => c.code === search.country) ?? fallbackCountry;
-  const calibration =
-    "lmic_calibration" in country && country.lmic_calibration
-      ? Number(country.lmic_calibration)
-      : fallbackCountry.lmic_calibration;
+  const currentCountry = (countriesQ.data ?? []).find((c) => c.code === countryCode);
 
-  const riskRows = useMemo(
-    () =>
-      persona.skills.map((skill) => {
-        const baseRisk = FREY_OSBORNE[skill.isco] ?? 0.45;
-        const calibratedRisk = Math.min(0.95, baseRisk * calibration);
-        return {
-          ...skill,
-          baseRisk,
-          calibratedRisk,
-          durable: calibratedRisk < 0.35,
-        };
-      }),
-    [persona.skills, calibration],
-  );
-  const compositeRisk =
-    riskRows.reduce((sum, row) => sum + row.calibratedRisk * row.weight, 0) /
-    riskRows.reduce((sum, row) => sum + row.weight, 0);
-  const band = compositeRisk < 0.35 ? "low" : compositeRisk < 0.6 ? "moderate" : "high";
-  const projection = WITTGENSTEIN[search.country];
+  const riskData = useMemo(() => {
+    return persona.skills.map((s) => {
+      const raw = FREY_OSBORNE[s.isco] ?? 0.45;
+      const calibrated = raw * lmicFactor;
+      return {
+        ...s,
+        rawRisk: raw,
+        calibratedRisk: calibrated,
+        durable: calibrated < 0.35,
+      };
+    });
+  }, [persona.skills, lmicFactor]);
+
+  const compositeRisk = useMemo(() => {
+    if (riskData.length === 0) return 0;
+    return riskData.reduce((a, r) => a + r.calibratedRisk, 0) / riskData.length;
+  }, [riskData]);
+
+  const durableCount = riskData.filter((r) => r.durable).length;
+  const highRiskCount = riskData.filter((r) => r.calibratedRisk >= 0.5).length;
 
   return (
     <AppShell>
@@ -110,170 +415,276 @@ function ReadinessPage() {
         <PageTitle
           module="Module 02"
           eyebrow="AI Readiness & Displacement Risk Lens"
-          description="Based on Frey & Osborne (2013) automation probabilities, calibrated for LMIC context where task composition and economic conditions differ from the US baseline. Projections to 2035 use Wittgenstein Centre education scenarios."
+          description="Frey & Osborne (2013) automation probabilities calibrated for LMIC context. Wittgenstein Centre 2025-2035 education projections. Honest risk analysis with durable skill identification and adjacent skill roadmap."
         >
           Your automation risk profile
         </PageTitle>
 
-        <div className="mb-5 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-tx-2">Persona:</span>
-          {PERSONAS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => navigate({ search: (s) => ({ ...s, persona: p }) })}
-              className={chip(search.persona === p)}
+        {/* Persona selector strip */}
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-tx-2">
+            Analyzing:
+          </span>
+          {Object.entries(PERSONA_SEEDS).map(([slug, p]) => (
+            <Link
+              key={slug}
+              to="/readiness"
+              search={{ persona: slug as never }}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                selectedPersona === slug
+                  ? "border-gold bg-gold-soft text-gold"
+                  : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0"
+              }`}
             >
-              {PERSONA_DATA[p].emoji} {PERSONA_DATA[p].name}
-            </button>
-          ))}
-          <span className="ml-0 text-[11px] text-tx-2 md:ml-3">Country:</span>
-          {COUNTRIES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => navigate({ search: (s) => ({ ...s, country: c }) })}
-              className={chip(search.country === c)}
-            >
-              {STATIC_COUNTRIES[c].flag_emoji} {STATIC_COUNTRIES[c].name}
-            </button>
+              <span>{p.emoji}</span> {p.name}
+            </Link>
           ))}
         </div>
 
-        <section className="mb-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="rounded-2xl border border-border-soft bg-bg-3 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="eyebrow mb-1">Composite automation risk</p>
-                <h2 className="font-display text-[18px] font-semibold text-tx-0">
-                  {persona.name} · {country.name}
-                </h2>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* ── LEFT COLUMN ── */}
+          <div className="flex flex-col gap-5">
+            {/* Gauge */}
+            <div className="rounded-xl border border-border-soft bg-bg-3 p-5 text-center">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.08em] text-tx-2">
+                Composite Automation Risk
+              </p>
+              <GaugeChart value={compositeRisk} />
+              <p className="mt-2 text-[13px] font-semibold text-tx-0">
+                {compositeRisk < 0.35
+                  ? "LOW automation risk — resilient profile"
+                  : compositeRisk < 0.55
+                    ? "MODERATE risk — targeted upskilling recommended"
+                    : "HIGH risk — priority reskilling needed"}
+              </p>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10.5px] font-semibold ${
+                    compositeRisk < 0.35
+                      ? "bg-teal-soft text-teal"
+                      : compositeRisk < 0.55
+                        ? "bg-gold-soft text-gold"
+                        : "bg-coral-soft text-coral"
+                  }`}
+                >
+                  {compositeRisk < 0.35 ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <AlertTriangle className="h-3 w-3" />
+                  )}
+                  {Math.round(compositeRisk * 100)}% composite
+                </span>
               </div>
-              <Gauge className={bandColor(band, "icon")} />
-            </div>
-
-            <RiskGauge value={compositeRisk} band={band} />
-
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <Signal
-                label="Base model"
-                value="Frey-Osborne"
-                tone="gold"
-                note="Occupation-level probability"
-              />
-              <Signal
-                label="LMIC factor"
-                value={`×${calibration.toFixed(2)}`}
-                tone="teal"
-                note="Capital/labor + infrastructure"
-              />
-              <Signal
-                label="Risk band"
-                value={band.toUpperCase()}
-                tone={band === "high" ? "coral" : band === "moderate" ? "gold" : "teal"}
-                note="Used for pathway priority"
-              />
-            </div>
-
-            <div className="mt-4 rounded-xl border border-gold/25 bg-gold-soft p-3 text-[11.5px] leading-relaxed text-tx-1">
-              <strong className="text-gold">Calibration note:</strong> Frey & Osborne scores are
-              adjusted downward in LMIC contexts because task bundles, lower capital intensity, and
-              infrastructure constraints slow near-term automation. The country multiplier is
-              visible so the risk is explainable, not a black box.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border-soft bg-bg-3 p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="eyebrow mb-1">Per-skill risk breakdown</p>
-                <h2 className="font-display text-[18px] font-semibold text-tx-0">
-                  What is exposed, what is durable
-                </h2>
-              </div>
-              <ShieldAlert className="h-5 w-5 text-coral" />
-            </div>
-            <div className="space-y-3">
-              {riskRows.map((row) => (
-                <RiskRow key={`${row.isco}-${row.name}`} row={row} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-5 grid gap-4 lg:grid-cols-[1fr_0.85fr]">
-          <div className="rounded-2xl border border-border-soft bg-bg-3 p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="eyebrow mb-1">Education projections</p>
-                <h2 className="font-display text-[18px] font-semibold text-tx-0">
-                  Wittgenstein SSP2 · 2025-2035
-                </h2>
-                <p className="mt-1 text-[11.5px] text-tx-2">
-                  Share of the 25-34 population by highest education level in {country.name}.
-                </p>
-              </div>
-              <GraduationCap className="h-5 w-5 text-teal" />
-            </div>
-            <div className="space-y-4">
-              {projection.map((point) => (
-                <ProjectionRow key={point.year} point={point} />
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3 text-[10px] text-tx-2">
-              <Legend color="bg-gold" label="Primary" />
-              <Legend color="bg-sky" label="Secondary" />
-              <Legend color="bg-teal" label="Tertiary" />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border-soft bg-bg-3 p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="eyebrow mb-1">Adjacent skills</p>
-                <h2 className="font-display text-[18px] font-semibold text-tx-0">
-                  Increase resilience
-                </h2>
-              </div>
-              <Target className="h-5 w-5 text-teal" />
-            </div>
-            <div className="grid gap-3">
-              {persona.adjacent.map((item) => (
-                <AdjacentCard key={item.skill} item={item} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-5 grid gap-4 lg:grid-cols-3">
-          {persona.pathway.map((step, idx) => (
-            <PathwayStep key={step.title} step={step} idx={idx} />
-          ))}
-        </section>
-
-        <section className="mb-5 rounded-2xl border border-teal/25 bg-teal-soft p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="eyebrow mb-1 text-teal">Action plan</p>
-              <h2 className="font-display text-[18px] font-semibold text-tx-0">
-                Pair the risk lens with the skills passport
-              </h2>
-              <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-tx-1">
-                Run the Skills Engine first, then use this page as the roadmap: validate durable
-                skills, choose one adjacent digital skill, and share the credential with an employer
-                or training partner.
+              <p className="mt-3 font-mono text-[9px] text-tx-2">
+                Source: Frey & Osborne (2013) · LMIC calibration ×{lmicFactor.toFixed(2)} (
+                {countryCode})
               </p>
             </div>
-            <a
-              href="/skills"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-teal px-4 py-2 text-[12px] font-semibold text-bg-0 transition hover:opacity-90"
-            >
-              <Sparkles className="h-4 w-4" />
-              Open Skills Engine
-              <ArrowRight className="h-4 w-4" />
-            </a>
+
+            {/* LMIC calibration callout */}
+            <div className="rounded-xl border border-gold/20 bg-gold-soft p-4">
+              <div className="flex items-start gap-2.5">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                <div className="text-[11px] leading-relaxed text-tx-1">
+                  <p className="mb-1 font-semibold text-tx-0">Why LMIC calibration matters</p>
+                  <p>
+                    Base Frey-Osborne scores assume US task composition and capital intensity. In
+                    LMIC informal economies, lower capital costs vs. labor, infrastructure
+                    constraints, and different task bundles mean automation arrives slower. We apply
+                    a{" "}
+                    <strong className="text-gold">
+                      ×{lmicFactor.toFixed(2)} country-level multiplier
+                    </strong>{" "}
+                    for {currentCountry?.name ?? countryCode} (range: 0.70–0.85 depending on
+                    infrastructure index).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary stats strip */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-border-soft bg-bg-4 p-3 text-center">
+                <p className="font-mono text-[22px] font-bold text-teal">{durableCount}</p>
+                <p className="text-[10px] text-tx-2">Durable skills</p>
+              </div>
+              <div className="rounded-lg border border-border-soft bg-bg-4 p-3 text-center">
+                <p className="font-mono text-[22px] font-bold text-coral">{highRiskCount}</p>
+                <p className="text-[10px] text-tx-2">At-risk skills</p>
+              </div>
+              <div className="rounded-lg border border-border-soft bg-bg-4 p-3 text-center">
+                <p className="font-mono text-[22px] font-bold text-gold">
+                  {persona.adjacentSkills.length}
+                </p>
+                <p className="text-[10px] text-tx-2">Adjacent paths</p>
+              </div>
+            </div>
+
+            {/* Per-skill risk rows */}
+            <div>
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.08em] text-tx-2">
+                Per-Skill Risk Breakdown
+              </p>
+              <div className="flex flex-col gap-2">
+                {riskData.map((r, i) => {
+                  const pct = Math.round(r.calibratedRisk * 100);
+                  const color =
+                    r.calibratedRisk < 0.35 ? "teal" : r.calibratedRisk < 0.55 ? "gold" : "coral";
+                  const colorClass =
+                    color === "teal" ? "text-teal" : color === "gold" ? "text-gold" : "text-coral";
+                  const barClass =
+                    color === "teal" ? "bg-teal" : color === "gold" ? "bg-gold" : "bg-coral";
+                  return (
+                    <div
+                      key={i}
+                      className="anim-fade-in rounded-xl border border-border-soft bg-bg-3 p-3"
+                      style={{ animationDelay: `${i * 60}ms` }}
+                    >
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[12px] font-semibold text-tx-0">{r.name}</span>
+                        <span className={`font-mono text-[12px] font-bold ${colorClass}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <div className="mb-2 h-[5px] rounded-full bg-bg-4">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${barClass}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[9.5px] text-tx-2">
+                        {r.durable && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-soft px-2 py-0.5 font-semibold text-teal">
+                            <Shield className="h-2.5 w-2.5" />
+                            Durable
+                          </span>
+                        )}
+                        <span>
+                          ISCO-{r.isco} · {r.category} · Base: {Math.round(r.rawRisk * 100)}% →
+                          LMIC-calibrated: {pct}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </section>
+
+          {/* ── RIGHT COLUMN ── */}
+          <div className="flex flex-col gap-5">
+            {/* Projection chart */}
+            <div className="rounded-xl border border-border-soft bg-bg-3 p-5">
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-tx-0">
+                    Education Level Projections 2025–2035
+                  </p>
+                  <p className="font-mono text-[9.5px] text-tx-2">
+                    Wittgenstein Centre SSP2 · {currentCountry?.name ?? countryCode} · 25-34 cohort
+                  </p>
+                </div>
+                <span className="text-[9.5px] text-tx-2">% of pop.</span>
+              </div>
+              <ProjectionChart countryCode={countryCode} />
+              <div className="mt-2 flex gap-4">
+                <LegendDot color="bg-gold" label="Primary only" />
+                <LegendDot color="bg-sky" label="Secondary" />
+                <LegendDot color="bg-teal" label="Tertiary" />
+              </div>
+            </div>
+
+            {/* Adjacent skills */}
+            <div>
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.08em] text-tx-2">
+                Adjacent Skills — Build Resilience
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {persona.adjacentSkills.map((adj, i) => (
+                  <div
+                    key={i}
+                    className="anim-fade-in rounded-xl border border-border-soft bg-bg-3 p-3 transition hover:border-teal/40"
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    <p className="text-[12px] font-semibold text-tx-0">{adj.name}</p>
+                    <p className="mt-0.5 font-mono text-[10px] font-semibold text-teal">
+                      {adj.impact} resilience
+                    </p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-tx-2">{adj.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 font-mono text-[9px] text-tx-2">
+                Resilience scores from ILO Future of Work task-content indices · 40+ countries
+              </p>
+            </div>
+
+            {/* Free learning resources */}
+            <div>
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.08em] text-tx-2">
+                Free Learning Resources — Africa-Accessible
+              </p>
+              <div className="flex flex-col gap-2">
+                {persona.resources.map((r, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg border border-border-soft bg-bg-4 p-3"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                      <div>
+                        <p className="text-[12px] font-semibold text-tx-0">{r.name}</p>
+                        <p className="text-[10px] text-tx-2">
+                          {r.provider} · {r.duration}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rounded bg-teal-soft px-2 py-0.5 font-mono text-[10px] font-bold text-teal">
+                      {r.cost.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between rounded-lg border border-border-soft bg-bg-4 p-3">
+                  <div className="flex items-start gap-2.5">
+                    <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                    <div>
+                      <p className="text-[12px] font-semibold text-tx-0">
+                        ILO Skills Academy — Labor Standards
+                      </p>
+                      <p className="text-[10px] text-tx-2">
+                        ILO-certified · relevant for cooperative organizers
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded bg-teal-soft px-2 py-0.5 font-mono text-[10px] font-bold text-teal">
+                    FREE
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA to Skills and Opportunities */}
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/skills"
+                search={{ persona: selectedPersona as never }}
+                className="inline-flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-[12px] font-semibold text-bg-0 transition hover:opacity-90"
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                Map skills in Module 01
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+              <Link
+                to="/opportunities"
+                search={{ persona: selectedPersona as never }}
+                className="inline-flex items-center gap-2 rounded-md border border-teal/40 bg-teal-soft px-4 py-2 text-[12px] font-semibold text-teal transition hover:bg-teal/20"
+              >
+                View matched opportunities
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
 
         <CitationsPanel citations={citationsQ.data ?? []} defaultOpen />
       </div>
@@ -281,546 +692,188 @@ function ReadinessPage() {
   );
 }
 
-type PersonaSlug = (typeof PERSONAS)[number];
-type CountryCode = (typeof COUNTRIES)[number];
-type Band = "low" | "moderate" | "high";
+/* ── Gauge Chart (SVG semicircle) ── */
+function GaugeChart({ value }: { value: number }) {
+  const r = 80;
+  const cx = 100;
+  const cy = 100;
+  const circumference = Math.PI * r;
+  const offset = circumference * (1 - value);
 
-interface PersonaSkill {
-  name: string;
-  isco: string;
-  category: string;
-  level: number;
-  weight: number;
-  note: string;
-}
+  const color =
+    value < 0.35
+      ? "oklch(0.800 0.130 180)"
+      : value < 0.55
+        ? "oklch(0.770 0.140 75)"
+        : "oklch(0.720 0.180 22)";
+  const trackColor = "oklch(0.220 0.045 263)";
 
-interface RiskRowData extends PersonaSkill {
-  baseRisk: number;
-  calibratedRisk: number;
-  durable: boolean;
-}
-
-const STATIC_COUNTRIES: Record<
-  CountryCode,
-  {
-    code: CountryCode;
-    name: string;
-    flag_emoji: string;
-    lmic_calibration: number;
-  }
-> = {
-  KE: { code: "KE", name: "Kenya", flag_emoji: "🇰🇪", lmic_calibration: 0.78 },
-  GH: { code: "GH", name: "Ghana", flag_emoji: "🇬🇭", lmic_calibration: 0.8 },
-  NG: { code: "NG", name: "Nigeria", flag_emoji: "🇳🇬", lmic_calibration: 0.72 },
-  ZA: { code: "ZA", name: "South Africa", flag_emoji: "🇿🇦", lmic_calibration: 0.85 },
-  RW: { code: "RW", name: "Rwanda", flag_emoji: "🇷🇼", lmic_calibration: 0.7 },
-};
-
-const FREY_OSBORNE: Record<string, number> = {
-  "7531": 0.57,
-  "7318": 0.49,
-  "5223": 0.92,
-  "7421": 0.51,
-  "2521": 0.25,
-  "1439": 0.16,
-  "6111": 0.54,
-  "3142": 0.35,
-  "7516": 0.63,
-  "3322": 0.45,
-  "3331": 0.59,
-  "4321": 0.72,
-  "2431": 0.67,
-  "2359": 0.033,
-};
-
-const PERSONA_DATA: Record<
-  PersonaSlug,
-  {
-    name: string;
-    emoji: string;
-    skills: PersonaSkill[];
-    adjacent: Array<{ skill: string; impact: string; desc: string }>;
-    pathway: Array<{ title: string; resource: string; outcome: string }>;
-  }
-> = {
-  sarah: {
-    name: "Sarah",
-    emoji: "🧵",
-    skills: [
-      {
-        name: "Garment construction & tailoring",
-        isco: "7531",
-        category: "Trade",
-        level: 9,
-        weight: 1,
-        note: "Strong demand, but repetitive stitching tasks can be automated in factories.",
-      },
-      {
-        name: "Hand embroidery & beadwork",
-        isco: "7318",
-        category: "Creative",
-        level: 9,
-        weight: 0.9,
-        note: "Craft judgment and cultural motifs make this more resilient than basic sewing.",
-      },
-      {
-        name: "Shop and customer management",
-        isco: "5223",
-        category: "Business",
-        level: 6,
-        weight: 0.7,
-        note: "Retail admin is exposed, but relationship-led selling remains valuable.",
-      },
-    ],
-    adjacent: [
-      {
-        skill: "Digital pattern design",
-        impact: "+34% resilience",
-        desc: "CAD pattern tools turn Sarah's design intuition into export-ready, remote-compatible work.",
-      },
-      {
-        skill: "Garment quality control",
-        impact: "+41% resilience",
-        desc: "Human tactile judgment is hard to automate and maps to higher-value factory roles.",
-      },
-      {
-        skill: "E-commerce operations",
-        impact: "+28% resilience",
-        desc: "Listing, pricing, photography, and fulfilment unlock direct sales beyond Eldoret.",
-      },
-    ],
-    pathway: [
-      {
-        title: "Digitize one pattern",
-        resource: "YouTube + Valentina Patternmaking",
-        outcome: "Creates evidence for remote fashion assistant roles.",
-      },
-      {
-        title: "Add QC micro-credential",
-        resource: "ILO garment quality resources",
-        outcome: "Moves from production-only to quality assurance.",
-      },
-      {
-        title: "Launch seller profile",
-        resource: "Jumia Seller Academy",
-        outcome: "Turns local craft demand into regional demand.",
-      },
-    ],
-  },
-  james: {
-    name: "James",
-    emoji: "📱",
-    skills: [
-      {
-        name: "Mobile device repair",
-        isco: "7421",
-        category: "Technical",
-        level: 9,
-        weight: 1,
-        note: "Hardware diagnosis stays resilient while simple part swaps commoditize.",
-      },
-      {
-        name: "Data recovery",
-        isco: "2521",
-        category: "Digital",
-        level: 7,
-        weight: 0.85,
-        note: "Higher-complexity problem solving has lower automation exposure.",
-      },
-      {
-        name: "Repair-shop operations",
-        isco: "1439",
-        category: "Business",
-        level: 6,
-        weight: 0.7,
-        note: "People management and supplier judgment are durable business skills.",
-      },
-    ],
-    adjacent: [
-      {
-        skill: "CompTIA A+ fundamentals",
-        impact: "+31% resilience",
-        desc: "Formalizes informal repair expertise for corporate ICT support roles.",
-      },
-      {
-        skill: "Android firmware tooling",
-        impact: "+26% resilience",
-        desc: "Moves James toward software-side repair and remote support contracts.",
-      },
-      {
-        skill: "Device refurbishment QA",
-        impact: "+38% resilience",
-        desc: "Quality control and warranty workflows are hard to fully automate.",
-      },
-    ],
-    pathway: [
-      {
-        title: "Document repair cases",
-        resource: "Google Photos + before/after notes",
-        outcome: "Builds portfolio evidence for employers.",
-      },
-      {
-        title: "Study A+ modules",
-        resource: "Professor Messer free lessons",
-        outcome: "Adds recognized language to informal expertise.",
-      },
-      {
-        title: "Package remote support offer",
-        resource: "Google Digital Skills for Africa",
-        outcome: "Opens higher-paying helpdesk work.",
-      },
-    ],
-  },
-  amara: {
-    name: "Amara",
-    emoji: "🌾",
-    skills: [
-      {
-        name: "Smallholder crop production",
-        isco: "6111",
-        category: "Agriculture",
-        level: 8,
-        weight: 1,
-        note: "Field work is exposed to mechanization, but local agronomy judgment remains important.",
-      },
-      {
-        name: "Soil testing & agronomy",
-        isco: "3142",
-        category: "Technical",
-        level: 6,
-        weight: 0.8,
-        note: "Applied diagnosis and field adaptation are durable skills.",
-      },
-      {
-        name: "Post-harvest processing",
-        isco: "7516",
-        category: "Trade",
-        level: 7,
-        weight: 0.75,
-        note: "Routine packaging is exposed; food safety and quality systems improve resilience.",
-      },
-    ],
-    adjacent: [
-      {
-        skill: "Digital farm records",
-        impact: "+29% resilience",
-        desc: "Yield, expense, and buyer records make the cooperative investable.",
-      },
-      {
-        skill: "Food safety certification",
-        impact: "+36% resilience",
-        desc: "Quality compliance raises the value of processing work.",
-      },
-      {
-        skill: "Extension training delivery",
-        impact: "+33% resilience",
-        desc: "Teaching other farmers turns know-how into a higher-leverage role.",
-      },
-    ],
-    pathway: [
-      {
-        title: "Record one harvest cycle",
-        resource: "WeFarm / spreadsheet template",
-        outcome: "Creates proof for lenders and buyers.",
-      },
-      {
-        title: "Learn food safety basics",
-        resource: "FAO free resources",
-        outcome: "Improves export and supermarket readiness.",
-      },
-      {
-        title: "Formalize cooperative attestors",
-        resource: "TalentGraph peer attestation",
-        outcome: "Turns community trust into portable credentials.",
-      },
-    ],
-  },
-  kwame: {
-    name: "Kwame",
-    emoji: "🛒",
-    skills: [
-      {
-        name: "Import/export operations",
-        isco: "3322",
-        category: "Business",
-        level: 8,
-        weight: 1,
-        note: "Negotiation and supplier judgment lower displacement risk.",
-      },
-      {
-        name: "Customs clearance",
-        isco: "3331",
-        category: "Technical",
-        level: 8,
-        weight: 0.85,
-        note: "Regulatory knowledge is durable but paperwork workflows can automate.",
-      },
-      {
-        name: "Inventory management",
-        isco: "4321",
-        category: "Operations",
-        level: 7,
-        weight: 0.75,
-        note: "Stock tracking is highly automatable unless paired with analytics.",
-      },
-    ],
-    adjacent: [
-      {
-        skill: "Supply-chain analytics",
-        impact: "+37% resilience",
-        desc: "Moves spreadsheet work into forecasting, procurement, and margin decisions.",
-      },
-      {
-        skill: "Customs brokerage license",
-        impact: "+30% resilience",
-        desc: "Formal license turns lived trade experience into B2B credibility.",
-      },
-      {
-        skill: "Marketplace performance marketing",
-        impact: "+24% resilience",
-        desc: "Adds measurable demand generation to cross-border sourcing.",
-      },
-    ],
-    pathway: [
-      {
-        title: "Clean inventory data",
-        resource: "Google Sheets free course",
-        outcome: "Enables reorder points and gross-margin dashboards.",
-      },
-      {
-        title: "Map customs workflows",
-        resource: "Ghana Revenue Authority materials",
-        outcome: "Prepares for brokerage or logistics coordinator roles.",
-      },
-      {
-        title: "Build supplier scorecard",
-        resource: "Coursera supply chain audit",
-        outcome: "Turns negotiation skill into repeatable operations.",
-      },
-    ],
-  },
-};
-
-const WITTGENSTEIN: Record<
-  CountryCode,
-  Array<{ year: number; primary: number; secondary: number; tertiary: number }>
-> = {
-  KE: [
-    { year: 2025, primary: 38, secondary: 46, tertiary: 16 },
-    { year: 2027, primary: 36, secondary: 48, tertiary: 16 },
-    { year: 2029, primary: 34, secondary: 50, tertiary: 16 },
-    { year: 2031, primary: 31, secondary: 52, tertiary: 17 },
-    { year: 2035, primary: 29, secondary: 53, tertiary: 18 },
-  ],
-  GH: [
-    { year: 2025, primary: 32, secondary: 52, tertiary: 16 },
-    { year: 2027, primary: 30, secondary: 53, tertiary: 17 },
-    { year: 2029, primary: 28, secondary: 54, tertiary: 18 },
-    { year: 2031, primary: 26, secondary: 56, tertiary: 18 },
-    { year: 2035, primary: 24, secondary: 57, tertiary: 19 },
-  ],
-  NG: [
-    { year: 2025, primary: 45, secondary: 44, tertiary: 11 },
-    { year: 2027, primary: 43, secondary: 45, tertiary: 12 },
-    { year: 2029, primary: 40, secondary: 47, tertiary: 13 },
-    { year: 2031, primary: 37, secondary: 49, tertiary: 14 },
-    { year: 2035, primary: 35, secondary: 51, tertiary: 14 },
-  ],
-  RW: [
-    { year: 2025, primary: 41, secondary: 51, tertiary: 8 },
-    { year: 2027, primary: 39, secondary: 53, tertiary: 8 },
-    { year: 2029, primary: 36, secondary: 55, tertiary: 9 },
-    { year: 2031, primary: 33, secondary: 58, tertiary: 9 },
-    { year: 2035, primary: 30, secondary: 60, tertiary: 10 },
-  ],
-  ZA: [
-    { year: 2025, primary: 18, secondary: 55, tertiary: 27 },
-    { year: 2027, primary: 17, secondary: 56, tertiary: 27 },
-    { year: 2029, primary: 15, secondary: 57, tertiary: 28 },
-    { year: 2031, primary: 14, secondary: 58, tertiary: 28 },
-    { year: 2035, primary: 13, secondary: 58, tertiary: 29 },
-  ],
-};
-
-function chip(active: boolean) {
-  return [
-    "rounded-full border px-3 py-1 text-[11px] font-medium transition",
-    active
-      ? "border-gold bg-gold-soft text-gold"
-      : "border-border bg-bg-3 text-tx-1 hover:border-gold-glow hover:text-tx-0",
-  ].join(" ");
-}
-
-function RiskGauge({ value, band }: { value: number; band: Band }) {
-  const pct = Math.round(value * 100);
   return (
-    <div className="flex flex-col items-center">
+    <div className="relative inline-block">
+      <svg width="200" height="120" viewBox="0 0 200 120">
+        {/* Background arc */}
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none"
+          stroke={trackColor}
+          strokeWidth="14"
+          strokeLinecap="round"
+        />
+        {/* Value arc */}
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none"
+          stroke={color}
+          strokeWidth="14"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+        />
+        {/* Tick marks */}
+        {Array.from({ length: 11 }).map((_, i) => {
+          const angle = Math.PI + (Math.PI * i) / 10;
+          const x1 = cx + Math.cos(angle) * (r - 10);
+          const y1 = cy + Math.sin(angle) * (r - 10);
+          const x2 = cx + Math.cos(angle) * (r + 2);
+          const y2 = cy + Math.sin(angle) * (r + 2);
+          return (
+            <line
+              key={i}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="oklch(1 0 0 / 0.1)"
+              strokeWidth="1"
+            />
+          );
+        })}
+      </svg>
       <div
-        className="relative grid h-44 w-44 place-items-center rounded-full"
-        style={{
-          background: `conic-gradient(${bandColor(band, "raw")} ${pct * 3.6}deg, oklch(1 0 0 / 0.08) 0deg)`,
-        }}
+        className="absolute bottom-1 left-1/2 -translate-x-1/2 font-display text-[26px] font-bold"
+        style={{ color }}
       >
-        <div className="grid h-32 w-32 place-items-center rounded-full border border-border-soft bg-bg-2 text-center">
-          <div>
-            <p className={`font-mono text-[34px] font-bold ${bandColor(band, "text")}`}>{pct}%</p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-tx-2">{band} risk</p>
-          </div>
-        </div>
-      </div>
-      <p className="mt-3 max-w-sm text-center text-[11.5px] leading-relaxed text-tx-1">
-        {band === "low"
-          ? "Resilient profile: deepen evidence and target higher-value credentials."
-          : band === "moderate"
-            ? "Moderate exposure: add one adjacent digital or quality-control skill."
-            : "High exposure: prioritize reskilling paths before matching to opportunities."}
-      </p>
-    </div>
-  );
-}
-
-function RiskRow({ row }: { row: RiskRowData }) {
-  const pct = Math.round(row.calibratedRisk * 100);
-  const band: Band =
-    row.calibratedRisk < 0.35 ? "low" : row.calibratedRisk < 0.6 ? "moderate" : "high";
-  return (
-    <article className="rounded-xl border border-border-soft bg-bg-4 p-3">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-[12px] font-semibold text-tx-0">{row.name}</h3>
-          <p className="mt-0.5 text-[10px] text-tx-2">
-            ISCO-{row.isco} · {row.category} · Level {row.level}/10
-          </p>
-        </div>
-        <span className={`font-mono text-[13px] font-bold ${bandColor(band, "text")}`}>{pct}%</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-bg-2">
-        <div className={bandColor(band, "bg")} style={{ width: `${pct}%`, height: "100%" }} />
-      </div>
-      <div className="mt-2 flex items-start gap-2 text-[10.5px] leading-relaxed text-tx-1">
-        {row.durable ? (
-          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
-        ) : (
-          <BrainCircuit className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
-        )}
-        <span>
-          {row.note} Base {Math.round(row.baseRisk * 100)}% → LMIC-calibrated {pct}%.
-        </span>
-      </div>
-    </article>
-  );
-}
-
-function Signal({
-  label,
-  value,
-  tone,
-  note,
-}: {
-  label: string;
-  value: string;
-  tone: "gold" | "teal" | "coral";
-  note: string;
-}) {
-  const color = tone === "gold" ? "text-gold" : tone === "teal" ? "text-teal" : "text-coral";
-  return (
-    <div className="rounded-xl border border-border-soft bg-bg-4 p-3">
-      <p className="text-[10px] text-tx-2">{label}</p>
-      <p className={`mt-1 font-mono text-[13px] font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-[9.5px] text-tx-2">{note}</p>
-    </div>
-  );
-}
-
-function ProjectionRow({
-  point,
-}: {
-  point: { year: number; primary: number; secondary: number; tertiary: number };
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-[10.5px]">
-        <span className="font-mono font-bold text-tx-1">{point.year}</span>
-        <span className="text-tx-2">
-          P {point.primary}% · S {point.secondary}% · T {point.tertiary}%
-        </span>
-      </div>
-      <div className="flex h-4 overflow-hidden rounded-full border border-border-soft bg-bg-2">
-        <div className="bg-gold" style={{ width: `${point.primary}%` }} />
-        <div className="bg-sky" style={{ width: `${point.secondary}%` }} />
-        <div className="bg-teal" style={{ width: `${point.tertiary}%` }} />
+        {Math.round(value * 100)}%
       </div>
     </div>
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+/* ── Projection Chart (Canvas-based via SVG polylines) ── */
+function ProjectionChart({ countryCode }: { countryCode: string }) {
+  const data = WITTGENSTEIN[countryCode] ?? WITTGENSTEIN.KE;
+  const w = 400;
+  const h = 140;
+  const pad = { t: 8, r: 16, b: 24, l: 36 };
+  const cw = w - pad.l - pad.r;
+  const ch = h - pad.t - pad.b;
+
+  const toPoints = useCallback(
+    (vals: number[]) => {
+      return vals
+        .map((v, i) => {
+          const x = pad.l + (i / (PROJ_YEARS.length - 1)) * cw;
+          const y = pad.t + ch * (1 - v / 80);
+          return `${x},${y}`;
+        })
+        .join(" ");
+    },
+    [cw, ch, pad.l, pad.t],
+  );
+
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`h-2 w-2 rounded-sm ${color}`} />
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-[140px] w-full">
+      {/* Grid lines */}
+      {[0, 20, 40, 60, 80].map((v) => {
+        const y = pad.t + ch * (1 - v / 80);
+        return (
+          <g key={v}>
+            <line
+              x1={pad.l}
+              y1={y}
+              x2={pad.l + cw}
+              y2={y}
+              stroke="oklch(1 0 0 / 0.04)"
+              strokeWidth="1"
+            />
+            <text
+              x={pad.l - 4}
+              y={y + 3}
+              textAnchor="end"
+              style={{
+                fontSize: "8px",
+                fontFamily: "Space Mono",
+                fill: "oklch(1 0 0 / 0.25)",
+              }}
+            >
+              {v}%
+            </text>
+          </g>
+        );
+      })}
+      {/* X labels */}
+      {PROJ_YEARS.map((yr, i) => {
+        const x = pad.l + (i / (PROJ_YEARS.length - 1)) * cw;
+        return (
+          <text
+            key={yr}
+            x={x}
+            y={h - 2}
+            textAnchor="middle"
+            style={{
+              fontSize: "8px",
+              fontFamily: "Space Mono",
+              fill: "oklch(1 0 0 / 0.25)",
+            }}
+          >
+            {yr}
+          </text>
+        );
+      })}
+      {/* Lines */}
+      <polyline
+        points={toPoints(data.primary)}
+        fill="none"
+        stroke="oklch(0.770 0.140 75)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={toPoints(data.secondary)}
+        fill="none"
+        stroke="oklch(0.760 0.130 230)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={toPoints(data.tertiary)}
+        fill="none"
+        stroke="oklch(0.800 0.130 180)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      {/* Dots */}
+      {[
+        { vals: data.primary, color: "oklch(0.770 0.140 75)" },
+        { vals: data.secondary, color: "oklch(0.760 0.130 230)" },
+        { vals: data.tertiary, color: "oklch(0.800 0.130 180)" },
+      ].map(({ vals, color }) =>
+        vals.map((v, i) => {
+          const x = pad.l + (i / (PROJ_YEARS.length - 1)) * cw;
+          const y = pad.t + ch * (1 - v / 80);
+          return <circle key={`${color}-${i}`} cx={x} cy={y} r="3" fill={color} />;
+        }),
+      )}
+    </svg>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] text-tx-1">
+      <div className={`h-[3px] w-[12px] rounded-full ${color}`} />
       {label}
-    </span>
+    </div>
   );
-}
-
-function AdjacentCard({ item }: { item: { skill: string; impact: string; desc: string } }) {
-  return (
-    <article className="rounded-xl border border-border-soft bg-bg-4 p-3 transition hover:border-teal/40">
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <h3 className="text-[12px] font-semibold text-tx-0">{item.skill}</h3>
-        <span className="shrink-0 rounded-full bg-teal-soft px-2 py-0.5 font-mono text-[9px] font-bold text-teal">
-          {item.impact}
-        </span>
-      </div>
-      <p className="text-[10.5px] leading-relaxed text-tx-1">{item.desc}</p>
-    </article>
-  );
-}
-
-function PathwayStep({
-  step,
-  idx,
-}: {
-  step: { title: string; resource: string; outcome: string };
-  idx: number;
-}) {
-  return (
-    <article className="rounded-2xl border border-border-soft bg-bg-3 p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-gold-soft font-mono text-[12px] font-bold text-gold">
-          {idx + 1}
-        </span>
-        <h3 className="font-display text-[14px] font-semibold text-tx-0">{step.title}</h3>
-      </div>
-      <p className="flex items-center gap-2 text-[11px] font-medium text-teal">
-        <BookOpen className="h-3.5 w-3.5" />
-        {step.resource}
-      </p>
-      <p className="mt-2 text-[11px] leading-relaxed text-tx-1">{step.outcome}</p>
-    </article>
-  );
-}
-
-function bandColor(band: Band, mode: "text" | "bg" | "icon" | "raw"): string {
-  const map = {
-    low: {
-      text: "text-teal",
-      bg: "bg-teal",
-      icon: "h-5 w-5 text-teal",
-      raw: "oklch(0.800 0.130 180)",
-    },
-    moderate: {
-      text: "text-gold",
-      bg: "bg-gold",
-      icon: "h-5 w-5 text-gold",
-      raw: "oklch(0.770 0.140 75)",
-    },
-    high: {
-      text: "text-coral",
-      bg: "bg-coral",
-      icon: "h-5 w-5 text-coral",
-      raw: "oklch(0.720 0.180 22)",
-    },
-  } satisfies Record<Band, Record<typeof mode, string>>;
-  return map[band][mode];
 }

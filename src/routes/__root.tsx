@@ -64,22 +64,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           "Map informal-economy skills to ISCO-08, see automation risk and global opportunities. Built for the World Bank Unmapped challenge.",
       },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05" },
-      { name: "twitter:title", content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05" },
+      {
+        name: "twitter:title",
+        content: "TalentGraph Africa — UNMAPPED · World Bank Challenge 05",
+      },
       {
         name: "twitter:description",
         content:
-          "AI skills mapping, automation-risk intelligence, opportunity matching, and cryptographic credentials for informal-economy workers.",
-      },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eff8cca4-adb4-481e-8159-a39d74be75b8/id-preview-b6851556--b7ff7fd2-912d-4f55-9443-d76e9f93ff8d.lovable.app-1777185628752.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eff8cca4-adb4-481e-8159-a39d74be75b8/id-preview-b6851556--b7ff7fd2-912d-4f55-9443-d76e9f93ff8d.lovable.app-1777185628752.png",
+          "AI + cryptographic credentials for the 600M unmapped informal workers of Sub-Saharan Africa. Map skills to ISCO-08, see automation risk, find opportunities.",
       },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
