@@ -7,7 +7,11 @@ import {
   PERSONA_SLUG,
 } from "@/lib/schemas";
 import { sanitizeUserPrompt } from "@/lib/security/prompt-guard";
-import { enforceRateLimit, RateLimitError } from "@/lib/security/rate-limit";
+import {
+  enforceRateLimit,
+  RateLimitError,
+  RateLimitInfraError,
+} from "@/lib/security/rate-limit";
 import { recordAudit } from "@/lib/security/audit";
 import { callLovableAITool } from "@/lib/ai/lovable-ai";
 import { getSupabasePublic } from "@/lib/supabase-server";
@@ -143,6 +147,18 @@ export const extractSkills = createServerFn({ method: "POST" })
             error:
               "Too many extractions in a short time. Please wait a moment and try again.",
             status: 429,
+          };
+        }
+        if (e instanceof RateLimitInfraError) {
+          await recordAudit({
+            action: "skills.extract.rate_limit_unavailable",
+            ip,
+            metadata: { persona: data.personaSlug },
+          });
+          return {
+            ok: false,
+            error: "Request protection is temporarily unavailable. Please retry shortly.",
+            status: 503,
           };
         }
         throw e;

@@ -65,6 +65,7 @@ describe("RouteErrorBoundary retry flow", () => {
     };
     expect(call.data.module).toBe("Skills Signal Engine");
     expect(call.data.message).toBe("boom on load");
+    expect(screen.getByText("boom on load")).toBeTruthy();
   });
 
   it("emits a success toast when retry succeeds", async () => {
@@ -89,6 +90,19 @@ describe("RouteErrorBoundary retry flow", () => {
         expect.objectContaining({ id: "toast-id" })
       );
     });
+  });
+
+  it("shows technical details in development mode", async () => {
+    const reset = vi.fn();
+    render(
+      <RouteErrorBoundary
+        error={new Error("secret stack detail")}
+        reset={reset}
+        module="Skills Signal Engine"
+      />
+    );
+    expect(screen.getByText(/Technical details/i)).toBeTruthy();
+    expect(screen.getByText("secret stack detail")).toBeTruthy();
   });
 
   it("emits a failure toast and re-logs when retry fails", async () => {

@@ -22,6 +22,15 @@ export interface RateLimitOptions {
   windowSeconds: number;
 }
 
+/** Infra-level failure while checking limits (e.g. DB unavailable). */
+export class RateLimitInfraError extends Error {
+  status = 503 as const;
+  constructor(message = "Rate limit infrastructure unavailable") {
+    super(message);
+    this.name = "RateLimitInfraError";
+  }
+}
+
 /**
  * Sliding-window rate limit check. Returns true if the request is allowed.
  * Backed by Postgres `rl_check` SECURITY DEFINER function.
@@ -35,10 +44,13 @@ export async function checkRateLimit(opts: RateLimitOptions): Promise<boolean> {
     _window_seconds: opts.windowSeconds,
   });
   if (error) {
-    console.error("rl_check failed", error);
-    // Fail-open on infra errors to avoid breaking the app entirely. The audit
-    // log captures the request anyway.
-    return true;
+    console.error("rl_check failed", {
+      bucket: opts.bucket,
+      code: error.code,
+      message: error.message,
+    });
+    // Fail closed when the limiter backend is unavailable to prevent abuse.
+    throw new RateLimitInfraError();
   }
   return data === true;
 }

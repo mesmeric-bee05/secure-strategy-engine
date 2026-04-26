@@ -13,6 +13,10 @@ export interface RouteErrorBoundaryProps {
   module?: string;
 }
 
+export function isDevEnvironment(): boolean {
+  return import.meta.env.DEV;
+}
+
 /**
  * User-friendly error boundary used by route `errorComponent`.
  * Logs to the append-only audit trail on mount and on retry.
@@ -26,6 +30,10 @@ export function RouteErrorBoundary({
   const router = useRouter();
   const logError = useServerFn(logClientError);
   const [retrying, setRetrying] = useState(false);
+  const showDevDetails = isDevEnvironment();
+  const userMessage = showDevDetails
+    ? error.message || "An unexpected error occurred."
+    : "An unexpected error occurred while loading this page.";
 
   useEffect(() => {
     // eslint-disable-next-line no-console
@@ -37,7 +45,7 @@ export function RouteErrorBoundary({
     recordLastError({
       module,
       route,
-      message: error.message || "unknown error",
+      message: userMessage,
     });
     void logError({
       data: {
@@ -49,7 +57,7 @@ export function RouteErrorBoundary({
     }).catch(() => {
       /* never let audit failure cascade */
     });
-  }, [error, module, logError]);
+  }, [error, module, logError, userMessage]);
 
   async function handleRetry() {
     setRetrying(true);
@@ -60,7 +68,12 @@ export function RouteErrorBoundary({
       toast.success(`${module} loaded`, { id: toastId });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Retry failed";
-      toast.error(`Still failing: ${msg}`, { id: toastId });
+      toast.error(
+        showDevDetails
+          ? `Still failing: ${msg}`
+          : "Still failing. Please try again shortly.",
+        { id: toastId }
+      );
       void logError({
         data: {
           module,
@@ -88,16 +101,18 @@ export function RouteErrorBoundary({
           </h2>
         </div>
         <p className="mb-4 text-[12.5px] leading-relaxed text-tx-1">
-          {error.message || "An unexpected error occurred."}
+          {userMessage}
         </p>
-        <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
-          <summary className="cursor-pointer text-tx-1">
-            Technical details
-          </summary>
-          <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
-            {error.stack ?? error.message}
-          </pre>
-        </details>
+        {showDevDetails && (
+          <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
+            <summary className="cursor-pointer text-tx-1">
+              Technical details
+            </summary>
+            <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
+              {error.stack ?? error.message}
+            </pre>
+          </details>
+        )}
         <button
           type="button"
           onClick={handleRetry}
