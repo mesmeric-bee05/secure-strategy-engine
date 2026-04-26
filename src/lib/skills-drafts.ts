@@ -166,6 +166,11 @@ export interface ParsedImport {
 /** Parse + sanitize a user-supplied JSON string. Throws on invalid input. */
 export function parseImport(input: unknown): ParsedImport {
   const parsed = DraftExportSchema.parse(input);
+  // Drop empty/whitespace-only drafts so we don't overwrite real data with "".
+  const drafts: Record<string, string> = {};
+  for (const [slug, text] of Object.entries(parsed.drafts)) {
+    if (text.trim().length > 0) drafts[slug] = text;
+  }
   const droppedLanguages: string[] = [];
   const languages: Record<string, SupportedLang> = {};
   for (const [slug, code] of Object.entries(parsed.languages)) {
@@ -175,7 +180,7 @@ export function parseImport(input: unknown): ParsedImport {
       droppedLanguages.push(`${slug}=${code}`);
     }
   }
-  return { drafts: parsed.drafts, languages, droppedLanguages };
+  return { drafts, languages, droppedLanguages };
 }
 
 /** Merge an import on top of current state ("new wins" for matching keys). */
@@ -184,4 +189,44 @@ export function mergeImport<T extends Record<string, string>>(
   incoming: Record<string, string>
 ): T {
   return { ...current, ...incoming } as T;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Friendly error messages for import failures                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Convert any thrown import error into a single human-readable string suitable
+ * for a toast notification. Never reveals stack traces or internal details.
+ */
+export function friendlyImportError(e: unknown): string {
+  if (e instanceof SyntaxError) {
+    return "Invalid backup: file is not valid JSON";
+  }
+  if (e instanceof z.ZodError) {
+    const issue = e.issues[0];
+    if (!issue) return "Invalid backup: unrecognised shape";
+    const path = issue.path.join(".") || "(root)";
+    // Version mismatch: surface the user's version explicitly.
+    if (issue.path[0] === "version" && issue.code === "invalid_literal") {
+      return `Backup version is not supported (expected version ${DRAFT_EXPORT_VERSION})`;
+    }
+    if (issue.path[0] === "version") {
+      return `Backup version is not supported (expected version ${DRAFT_EXPORT_VERSION})`;
+    }
+    if (issue.path[0] === "drafts" && issue.path.length === 1) {
+      return "Invalid backup: drafts must be an object of slug → text";
+    }
+    if (issue.path[0] === "languages" && issue.path.length === 1) {
+      return "Invalid backup: languages must be an object of slug → code";
+    }
+    if (issue.code === "unrecognized_keys") {
+      return "Invalid backup: contains unexpected fields";
+    }
+    return `Invalid backup at ${path}: ${issue.message}`;
+  }
+  if (e instanceof Error && e.message) {
+    return `Could not import file: ${e.message}`;
+  }
+  return "Could not import file";
 }
