@@ -6,6 +6,7 @@ const NAV = [
   { to: "/skills", label: "Skills Engine", num: "01" },
   { to: "/readiness", label: "AI Readiness", num: "02" },
   { to: "/opportunities", label: "Opportunities", num: "03" },
+  { to: "/security", label: "Security", num: "04" },
 ] as const;
 
 export function Topbar() {
@@ -32,8 +33,7 @@ export function Topbar() {
 
       <nav className="ml-4 flex items-center gap-px">
         {NAV.map((item) => {
-          const active =
-            item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+          const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
           return (
             <Link
               key={item.to}

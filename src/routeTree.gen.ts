@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as IndexRouteImport } from './routes/index'
@@ -18,6 +19,11 @@ import { Route as CredentialIdRouteImport } from './routes/credential.$id'
 const SkillsRoute = SkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReadinessRoute = ReadinessRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/opportunities': typeof OpportunitiesRoute
   '/readiness': typeof ReadinessRoute
+  '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/opportunities': typeof OpportunitiesRoute
   '/readiness': typeof ReadinessRoute
+  '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
 }
@@ -60,6 +68,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/opportunities': typeof OpportunitiesRoute
   '/readiness': typeof ReadinessRoute
+  '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
 }
@@ -69,15 +78,23 @@ export interface FileRouteTypes {
     | '/'
     | '/opportunities'
     | '/readiness'
+    | '/security'
     | '/skills'
     | '/credential/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/opportunities' | '/readiness' | '/skills' | '/credential/$id'
+  to:
+    | '/'
+    | '/opportunities'
+    | '/readiness'
+    | '/security'
+    | '/skills'
+    | '/credential/$id'
   id:
     | '__root__'
     | '/'
     | '/opportunities'
     | '/readiness'
+    | '/security'
     | '/skills'
     | '/credential/$id'
   fileRoutesById: FileRoutesById
@@ -86,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   OpportunitiesRoute: typeof OpportunitiesRoute
   ReadinessRoute: typeof ReadinessRoute
+  SecurityRoute: typeof SecurityRoute
   SkillsRoute: typeof SkillsRoute
   CredentialIdRoute: typeof CredentialIdRoute
 }
@@ -97,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills'
       preLoaderRoute: typeof SkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/readiness': {
@@ -134,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   OpportunitiesRoute: OpportunitiesRoute,
   ReadinessRoute: ReadinessRoute,
+  SecurityRoute: SecurityRoute,
   SkillsRoute: SkillsRoute,
   CredentialIdRoute: CredentialIdRoute,
 }
