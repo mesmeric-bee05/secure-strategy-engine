@@ -6,21 +6,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { logClientError } from "@/server/audit.functions";
 import { recordLastError } from "@/lib/last-error";
 
-function safeClientErrorMessage(error: Error): string {
-  if (!error.message) return "unexpected_route_error";
-  return error.message.slice(0, 240);
-}
-
-function visibleErrorMessage(error: Error): string {
-  if (import.meta.env.DEV) return safeClientErrorMessage(error);
-  return "An unexpected error occurred. Please retry or contact support if it continues.";
-}
-
 export interface RouteErrorBoundaryProps {
   error: Error;
   reset: () => void;
   /** Module label for context — e.g. "Skills Engine" */
   module?: string;
+}
+
+export function isDevEnvironment(): boolean {
+  return import.meta.env.DEV;
 }
 
 /**
@@ -36,26 +30,34 @@ export function RouteErrorBoundary({
   const router = useRouter();
   const logError = useServerFn(logClientError);
   const [retrying, setRetrying] = useState(false);
+  const showDevDetails = isDevEnvironment();
+  const userMessage = showDevDetails
+    ? error.message || "An unexpected error occurred."
+    : "An unexpected error occurred while loading this page.";
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
     console.error(`[RouteError:${module}]`, error);
     const route =
-      typeof window !== "undefined" ? window.location.pathname + window.location.search : "ssr";
+      typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : "ssr";
     recordLastError({
       module,
       route,
-      message: safeClientErrorMessage(error),
+      message: userMessage,
     });
     void logError({
       data: {
         module,
         route,
-        message: safeClientErrorMessage(error),
+        message: error.message || "unknown error",
+        stack: error.stack?.slice(0, 4000),
       },
     }).catch(() => {
       /* never let audit failure cascade */
     });
-  }, [error, module, logError]);
+  }, [error, module, logError, userMessage]);
 
   async function handleRetry() {
     setRetrying(true);
@@ -65,8 +67,13 @@ export function RouteErrorBoundary({
       reset();
       toast.success(`${module} loaded`, { id: toastId });
     } catch (e) {
-      const msg = e instanceof Error ? safeClientErrorMessage(e) : "retry_failed";
-      toast.error(`Still failing: ${msg}`, { id: toastId });
+      const msg = e instanceof Error ? e.message : "Retry failed";
+      toast.error(
+        showDevDetails
+          ? `Still failing: ${msg}`
+          : "Still failing. Please try again shortly.",
+        { id: toastId }
+      );
       void logError({
         data: {
           module,
@@ -93,10 +100,14 @@ export function RouteErrorBoundary({
             Something broke loading {module}
           </h2>
         </div>
-        <p className="mb-4 text-[12.5px] leading-relaxed text-tx-1">{visibleErrorMessage(error)}</p>
-        {import.meta.env.DEV && (
+        <p className="mb-4 text-[12.5px] leading-relaxed text-tx-1">
+          {userMessage}
+        </p>
+        {showDevDetails && (
           <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
-            <summary className="cursor-pointer text-tx-1">Technical details</summary>
+            <summary className="cursor-pointer text-tx-1">
+              Technical details
+            </summary>
             <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
               {error.stack ?? error.message}
             </pre>
