@@ -484,6 +484,7 @@ function SkillsPage() {
                   type="button"
                   onClick={handleExport}
                   aria-label="Export all persona drafts as JSON"
+                  aria-keyshortcuts="Control+S Meta+S"
                   className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
                 >
                   <Download className="h-3 w-3" aria-hidden="true" />
@@ -493,11 +494,72 @@ function SkillsPage() {
                   type="button"
                   onClick={() => importInputRef.current?.click()}
                   aria-label="Import persona drafts from a JSON backup file"
+                  aria-keyshortcuts="Control+I Meta+I"
                   className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
                 >
                   <Upload className="h-3 w-3" aria-hidden="true" />
                   Import
                 </button>
+                <details className="group relative">
+                  <summary
+                    aria-label="Show keyboard shortcuts"
+                    className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-glow [&::-webkit-details-marker]:hidden"
+                  >
+                    <Keyboard className="h-3 w-3" aria-hidden="true" />
+                    Shortcuts
+                  </summary>
+                  <div
+                    role="region"
+                    aria-label="Keyboard shortcuts for the skills page"
+                    className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-border-strong bg-bg-2 p-3 text-[11px] text-tx-1 shadow-lg"
+                  >
+                    <p className="mb-2 font-display text-[11px] font-semibold text-tx-0">
+                      Keyboard shortcuts
+                    </p>
+                    <ul className="space-y-1.5">
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Export drafts</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Ctrl</kbd>
+                          <span className="px-0.5">/</span>
+                          <kbd className="rounded border border-border bg-bg-3 px-1">⌘</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">S</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Import drafts</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Ctrl</kbd>
+                          <span className="px-0.5">/</span>
+                          <kbd className="rounded border border-border bg-bg-3 px-1">⌘</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">I</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Previous persona</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Alt</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">←</kbd>
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span>Next persona</span>
+                        <span className="font-mono text-[10px] text-tx-2">
+                          <kbd className="rounded border border-border bg-bg-3 px-1">Alt</kbd>
+                          {" + "}
+                          <kbd className="rounded border border-border bg-bg-3 px-1">→</kbd>
+                        </span>
+                      </li>
+                    </ul>
+                    <p className="mt-2 text-[10px] text-tx-2">
+                      Alt+Arrow is suppressed while typing in the editor so
+                      caret-jump-by-word still works.
+                    </p>
+                  </div>
+                </details>
                 <input
                   ref={importInputRef}
                   type="file"
