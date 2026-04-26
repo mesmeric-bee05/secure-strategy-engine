@@ -596,13 +596,14 @@ function SkillsPage() {
               <p id="persona-instructions" className="sr-only">
                 Use left and right arrow keys to navigate personas, Enter or
                 Space to select. Home and End jump to the first or last
-                persona.
+                persona. From anywhere on the page, hold Alt and press the
+                left or right arrow key to cycle personas.
               </p>
               <div
                 role="radiogroup"
                 aria-label="Choose a persona to quick-fill"
                 aria-describedby="persona-instructions"
-                className="flex flex-wrap gap-2"
+                className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 snap-x snap-mandatory sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
               >
                 {personas.map((p, idx) => {
                   const active = persona === p.slug;
