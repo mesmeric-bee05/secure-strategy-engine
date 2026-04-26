@@ -102,3 +102,110 @@ describe("skills-drafts: per-persona persistence", () => {
     ).toThrow();
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Hardened parseImport                                                        */
+/* -------------------------------------------------------------------------- */
+import { friendlyImportError } from "@/lib/skills-drafts";
+
+describe("parseImport: hardened shape validation", () => {
+  const baseValid = () => ({
+    version: 1 as const,
+    exportedAt: new Date().toISOString(),
+    drafts: {},
+    languages: {},
+  });
+
+  it("rejects drafts that is an array", () => {
+    expect(() =>
+      parseImport({ ...baseValid(), drafts: ["a", "b"] as unknown })
+    ).toThrow();
+  });
+
+  it("rejects drafts with a non-string value", () => {
+    expect(() =>
+      parseImport({ ...baseValid(), drafts: { sarah: 123 as unknown as string } })
+    ).toThrow();
+  });
+
+  it("rejects languages that is null", () => {
+    expect(() =>
+      parseImport({ ...baseValid(), languages: null as unknown as object })
+    ).toThrow();
+  });
+
+  it("strips __proto__ rather than allowing prototype pollution", () => {
+    const malicious = JSON.parse(
+      `{"version":1,"exportedAt":"2026-01-01T00:00:00.000Z","drafts":{"__proto__":"x","sarah":"ok"},"languages":{}}`
+    );
+    const parsed = parseImport(malicious);
+    expect(parsed.drafts).toEqual({ sarah: "ok" });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("rejects unknown top-level keys (strict)", () => {
+    expect(() =>
+      parseImport({ ...baseValid(), evil: "extra" } as unknown)
+    ).toThrow();
+  });
+
+  it("drops empty/whitespace-only drafts", () => {
+    const parsed = parseImport({
+      ...baseValid(),
+      drafts: { sarah: "", james: "   ", amara: "real text" },
+    });
+    expect(parsed.drafts).toEqual({ amara: "real text" });
+  });
+
+  it("rejects slug keys with disallowed characters", () => {
+    expect(() =>
+      parseImport({
+        ...baseValid(),
+        drafts: { "has space": "x" },
+      })
+    ).toThrow();
+  });
+});
+
+describe("friendlyImportError", () => {
+  it("describes JSON syntax errors", () => {
+    expect(friendlyImportError(new SyntaxError("bad json"))).toMatch(
+      /not valid JSON/i
+    );
+  });
+
+  it("describes version mismatch", () => {
+    let caught: unknown;
+    try {
+      parseImport({
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        drafts: {},
+        languages: {},
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(friendlyImportError(caught)).toMatch(/version/i);
+  });
+
+  it("describes drafts shape errors", () => {
+    let caught: unknown;
+    try {
+      parseImport({
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        drafts: ["a"] as unknown,
+        languages: {},
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(friendlyImportError(caught)).toMatch(/drafts/i);
+  });
+
+  it("falls back to a generic string for unknown errors", () => {
+    expect(friendlyImportError(new Error("boom"))).toMatch(/boom/);
+    expect(friendlyImportError(undefined)).toMatch(/Could not import/i);
+  });
+});
