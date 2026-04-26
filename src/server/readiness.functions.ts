@@ -20,7 +20,10 @@ const ReadinessInput = z.object({
    * array when no profile has been built yet, in which case we still return
    * country calibration + projections so the page renders something useful.
    */
-  iscoCodes: z.array(z.string().regex(/^[0-9]{4}$/)).max(40).default([]),
+  iscoCodes: z
+    .array(z.string().regex(/^[0-9]{4}$/))
+    .max(40)
+    .default([]),
   countryCode: COUNTRY_CODE.default("KE"),
   /**
    * Optional skill names so the per-skill rows can render without re-running
@@ -33,7 +36,7 @@ const ReadinessInput = z.object({
         skill_name: z.string().min(1).max(120),
         isco_code: z.string().regex(/^[0-9]{4}$/),
         proficiency_level: z.number().int().min(1).max(10),
-      })
+      }),
     )
     .max(40)
     .default([]),
@@ -81,9 +84,7 @@ export const getReadinessReport = createServerFn({ method: "GET" })
     if (uniqueCodes.length > 0) {
       const { data: rows } = await sb
         .from("frey_osborne_scores")
-        .select(
-          "isco_code,automation_probability,task_routine_share,task_cognitive_share"
-        )
+        .select("isco_code,automation_probability,task_routine_share,task_cognitive_share")
         .in("isco_code", uniqueCodes);
       freyRows = (rows ?? []) as FreyOsborneRow[];
     }
@@ -135,8 +136,7 @@ export const getReadinessReport = createServerFn({ method: "GET" })
         {
           key: "wittgenstein",
           label: "Wittgenstein Centre — SSP2",
-          citation:
-            "Education-level projections by country, age and sex through 2035.",
+          citation: "Education-level projections by country, age and sex through 2035.",
         },
       ],
     };

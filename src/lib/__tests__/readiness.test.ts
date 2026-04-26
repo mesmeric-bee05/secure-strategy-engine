@@ -54,9 +54,7 @@ describe("composeSkillRisks", () => {
   });
 
   it("clamps calibrated values to [0,1]", () => {
-    const high: FreyOsborneRow[] = [
-      { isco_code: "7531", automation_probability: 0.9 },
-    ];
+    const high: FreyOsborneRow[] = [{ isco_code: "7531", automation_probability: 0.9 }];
     const out = composeSkillRisks(skills.slice(0, 1), high, 1.5);
     // 0.9 * 1.2 (clamped from 1.5) = 1.08 → clamped to 1
     expect(out[0].calibratedProbability).toBe(1);
@@ -107,9 +105,7 @@ describe("compositeRisk", () => {
   });
 
   it("survives a profile of one durable skill", () => {
-    const skills = [
-      { skill_name: "Mgmt", isco_code: "1439", proficiency_level: 7 },
-    ];
+    const skills = [{ skill_name: "Mgmt", isco_code: "1439", proficiency_level: 7 }];
     const out = composeSkillRisks(skills, fo, 1);
     const c = compositeRisk(out);
     expect(c).toBeCloseTo(0.1, 6);
@@ -121,9 +117,7 @@ describe("projectionDelta", () => {
   it("returns null with fewer than two rows", () => {
     expect(projectionDelta([])).toBeNull();
     expect(
-      projectionDelta([
-        { year: 2025, primary_pct: 30, secondary_pct: 50, tertiary_pct: 20 },
-      ])
+      projectionDelta([{ year: 2025, primary_pct: 30, secondary_pct: 50, tertiary_pct: 20 }]),
     ).toBeNull();
   });
 
@@ -168,7 +162,7 @@ describe("recommendAdjacent", () => {
         hasData: false,
       })),
       pool,
-      pool.length
+      pool.length,
     );
     expect(out.every((r) => !have.has(r.isco_code))).toBe(true);
     expect(out.length).toBe(pool.length - have.size);

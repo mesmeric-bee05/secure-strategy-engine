@@ -73,7 +73,7 @@ export interface FreyOsborneRow {
 export function composeSkillRisks(
   skills: Pick<ExtractedSkillT, "skill_name" | "isco_code" | "proficiency_level">[],
   frey: FreyOsborneRow[],
-  lmicCalibration: number
+  lmicCalibration: number,
 ): SkillRisk[] {
   const calibration = clampCalibration(lmicCalibration);
   const byCode = new Map(frey.map((r) => [r.isco_code, r]));
@@ -117,9 +117,7 @@ export function composeSkillRisks(
  * Returns null when no skills have Frey-Osborne data.
  */
 export function compositeRisk(risks: SkillRisk[]): number | null {
-  const usable = risks.filter(
-    (r) => r.calibratedProbability !== null && r.proficiency > 0
-  );
+  const usable = risks.filter((r) => r.calibratedProbability !== null && r.proficiency > 0);
   if (usable.length === 0) return null;
   let weightSum = 0;
   let weightedRisk = 0;
@@ -199,8 +197,7 @@ const CURATED_ADJACENT: AdjacentSkill[] = [
   {
     name: "Supervision & team leadership",
     isco_code: "1439",
-    rationale:
-      "First-line management consistently rated low automation by F-O.",
+    rationale: "First-line management consistently rated low automation by F-O.",
     resilience_score: 0.85,
   },
   {
@@ -212,15 +209,13 @@ const CURATED_ADJACENT: AdjacentSkill[] = [
   {
     name: "Care & community work",
     isco_code: "5321",
-    rationale:
-      "Healthcare assistance and community work resist automation strongly.",
+    rationale: "Healthcare assistance and community work resist automation strongly.",
     resilience_score: 0.81,
   },
   {
     name: "Skilled trade — electrical/plumbing",
     isco_code: "7411",
-    rationale:
-      "Field repair under uncertainty stays human for the foreseeable future.",
+    rationale: "Field repair under uncertainty stays human for the foreseeable future.",
     resilience_score: 0.7,
   },
 ];
@@ -232,7 +227,7 @@ const CURATED_ADJACENT: AdjacentSkill[] = [
 export function recommendAdjacent(
   current: SkillRisk[],
   pool: AdjacentSkill[] = CURATED_ADJACENT,
-  topN = 3
+  topN = 3,
 ): AdjacentSkill[] {
   const haveCodes = new Set(current.map((s) => s.iscoCode));
   return pool

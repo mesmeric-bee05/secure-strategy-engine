@@ -23,10 +23,7 @@ import { COUNTRY_CODES } from "./opportunities";
 
 const SearchSchema = z.object({
   country: z.enum(COUNTRY_CODES).default("KE").catch("KE"),
-  persona: z
-    .enum(["sarah", "james", "amara", "kwame"])
-    .optional()
-    .catch(undefined),
+  persona: z.enum(["sarah", "james", "amara", "kwame"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/readiness")({
@@ -34,8 +31,7 @@ export const Route = createFileRoute("/readiness")({
   head: () => ({
     meta: [
       {
-        title:
-          "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
+        title: "AI Readiness Lens — Frey-Osborne automation risk · TalentGraph",
       },
       {
         name: "description",
@@ -73,11 +69,7 @@ export const Route = createFileRoute("/readiness")({
   },
   errorComponent: ({ error, reset }) => (
     <AppShell>
-      <RouteErrorBoundary
-        error={error}
-        reset={reset}
-        module="AI Readiness Lens"
-      />
+      <RouteErrorBoundary error={error} reset={reset} module="AI Readiness Lens" />
     </AppShell>
   ),
   component: ReadinessPage,
@@ -162,8 +154,7 @@ function ReadinessPage() {
 
   const report = reportQ.data;
   const composite = report?.compositeRisk ?? null;
-  const compositeBand: RiskBand | null =
-    composite === null ? null : bandFor(composite);
+  const compositeBand: RiskBand | null = composite === null ? null : bandFor(composite);
 
   return (
     <AppShell>
@@ -222,16 +213,16 @@ function ReadinessPage() {
             <p className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
               <span>
-                <strong className="text-tx-0">Pick a demo profile</strong> above
-                to see the risk gauge populate, or build your own profile in the{" "}
+                <strong className="text-tx-0">Pick a demo profile</strong> above to see the risk
+                gauge populate, or build your own profile in the{" "}
                 <Link
                   to="/skills"
                   className="underline decoration-gold-glow underline-offset-2 hover:text-gold"
                 >
                   Skills Engine
                 </Link>{" "}
-                first. The country selector controls the LMIC calibration
-                multiplier and the education projection curves.
+                first. The country selector controls the LMIC calibration multiplier and the
+                education projection curves.
               </span>
             </p>
           </div>
@@ -258,15 +249,10 @@ function ReadinessPage() {
 
             {/* RIGHT — Projections + adjacent skills */}
             <div className="flex flex-col gap-5">
-              <ProjectionsCard
-                country={report.country.name}
-                rows={report.projections}
-              />
+              <ProjectionsCard country={report.country.name} rows={report.projections} />
               <AdjacentSkillsCard
                 adjacent={report.adjacent}
-                userIscoCodes={
-                  new Set(report.skillRisks.map((r) => r.iscoCode))
-                }
+                userIscoCodes={new Set(report.skillRisks.map((r) => r.iscoCode))}
               />
             </div>
           </div>
@@ -311,12 +297,9 @@ function CompositeGaugeCard({
         </span>
       </header>
       <p className="mb-3 text-[11.5px] leading-relaxed text-tx-2">
-        Proficiency-weighted across mapped skills. Frey-Osborne base score is
-        multiplied by{" "}
-        <strong className="font-mono text-tx-1">
-          {country.lmic_calibration.toFixed(2)}
-        </strong>{" "}
-        for {country.name}'s LMIC labour-market context.
+        Proficiency-weighted across mapped skills. Frey-Osborne base score is multiplied by{" "}
+        <strong className="font-mono text-tx-1">{country.lmic_calibration.toFixed(2)}</strong> for{" "}
+        {country.name}'s LMIC labour-market context.
       </p>
 
       <div className="grid items-center gap-4 sm:grid-cols-[160px_1fr]">
@@ -330,16 +313,16 @@ function CompositeGaugeCard({
           </p>
           <ul className="mt-3 space-y-1 text-[10.5px] text-tx-2">
             <li>
-              <span className="inline-block h-2 w-2 rounded-sm bg-teal align-middle" />{" "}
-              &lt; 35% · Durable
+              <span className="inline-block h-2 w-2 rounded-sm bg-teal align-middle" /> &lt; 35% ·
+              Durable
             </li>
             <li>
-              <span className="inline-block h-2 w-2 rounded-sm bg-gold align-middle" />{" "}
-              35–60% · Moderate
+              <span className="inline-block h-2 w-2 rounded-sm bg-gold align-middle" /> 35–60% ·
+              Moderate
             </li>
             <li>
-              <span className="inline-block h-2 w-2 rounded-sm bg-coral align-middle" />{" "}
-              ≥ 60% · Exposed
+              <span className="inline-block h-2 w-2 rounded-sm bg-coral align-middle" /> ≥ 60% ·
+              Exposed
             </li>
           </ul>
         </div>
@@ -348,13 +331,7 @@ function CompositeGaugeCard({
   );
 }
 
-function Gauge({
-  value,
-  band,
-}: {
-  value: number | null;
-  band: RiskBand | null;
-}) {
+function Gauge({ value, band }: { value: number | null; band: RiskBand | null }) {
   const v = value ?? 0;
   const angle = -Math.PI + Math.PI * v;
   const cx = 80;
@@ -447,9 +424,7 @@ function PerSkillRiskList({ risks }: { risks: SkillRisk[] }) {
   }
   return (
     <section className="rounded-2xl border border-border-soft bg-bg-3 p-5">
-      <h2 className="mb-3 font-display text-[14px] font-semibold text-tx-0">
-        Per-skill risk
-      </h2>
+      <h2 className="mb-3 font-display text-[14px] font-semibold text-tx-0">Per-skill risk</h2>
       <ul className="space-y-2">
         {risks.map((r, i) => (
           <li
@@ -459,9 +434,7 @@ function PerSkillRiskList({ risks }: { risks: SkillRisk[] }) {
           >
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate text-[12.5px] font-semibold text-tx-0">
-                  {r.skillName}
-                </p>
+                <p className="truncate text-[12.5px] font-semibold text-tx-0">{r.skillName}</p>
                 <p className="text-[10px] text-tx-2">
                   ISCO-{r.iscoCode} · proficiency {r.proficiency}/10
                 </p>
@@ -470,10 +443,7 @@ function PerSkillRiskList({ risks }: { risks: SkillRisk[] }) {
             </div>
             {r.calibratedProbability !== null && r.rawProbability !== null && (
               <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-3">
-                <RiskBar
-                  raw={r.rawProbability}
-                  calibrated={r.calibratedProbability}
-                />
+                <RiskBar raw={r.rawProbability} calibrated={r.calibratedProbability} />
                 <p className="font-mono text-[10px] text-tx-2">
                   {Math.round(r.rawProbability * 100)}% raw
                   <span className="mx-1">→</span>
@@ -494,8 +464,8 @@ function PerSkillRiskList({ risks }: { risks: SkillRisk[] }) {
             {!r.hasData && (
               <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-tx-2">
                 <AlertTriangle className="h-3 w-3 text-coral" />
-                No Frey-Osborne row for ISCO-{r.iscoCode} yet — surfaced as
-                "no-data" so we don't fabricate a score.
+                No Frey-Osborne row for ISCO-{r.iscoCode} yet — surfaced as "no-data" so we don't
+                fabricate a score.
               </p>
             )}
           </li>
@@ -528,13 +498,7 @@ function RiskPill({ risk }: { risk: SkillRisk }) {
   );
 }
 
-function RiskBar({
-  raw,
-  calibrated,
-}: {
-  raw: number;
-  calibrated: number;
-}) {
+function RiskBar({ raw, calibrated }: { raw: number; calibrated: number }) {
   return (
     <div
       className="relative h-2 w-full overflow-hidden rounded-full bg-bg-2"
@@ -547,11 +511,7 @@ function RiskBar({
       />
       <div
         className={`absolute inset-y-0 left-0 ${
-          calibrated < 0.35
-            ? "bg-teal"
-            : calibrated < 0.6
-              ? "bg-gold"
-              : "bg-coral"
+          calibrated < 0.35 ? "bg-teal" : calibrated < 0.6 ? "bg-gold" : "bg-coral"
         }`}
         style={{ width: `${Math.round(calibrated * 100)}%` }}
       />
@@ -568,7 +528,12 @@ function ProjectionsCard({
   rows,
 }: {
   country: string;
-  rows: Array<{ year: number; primary_pct: number | null; secondary_pct: number | null; tertiary_pct: number | null }>;
+  rows: Array<{
+    year: number;
+    primary_pct: number | null;
+    secondary_pct: number | null;
+    tertiary_pct: number | null;
+  }>;
 }) {
   const delta = useMemo(() => projectionDelta(rows), [rows]);
 
@@ -599,8 +564,7 @@ function ProjectionsCard({
 
       <ProjectionChart rows={rows} />
       <p className="mt-2 text-[10px] italic text-tx-2">
-        Source: Wittgenstein Centre SSP2 · % of population by highest education
-        attainment.
+        Source: Wittgenstein Centre SSP2 · % of population by highest education attainment.
       </p>
     </section>
   );
@@ -638,7 +602,12 @@ function DeltaStat({
 function ProjectionChart({
   rows,
 }: {
-  rows: Array<{ year: number; primary_pct: number | null; secondary_pct: number | null; tertiary_pct: number | null }>;
+  rows: Array<{
+    year: number;
+    primary_pct: number | null;
+    secondary_pct: number | null;
+    tertiary_pct: number | null;
+  }>;
 }) {
   const W = 480;
   const H = 160;
@@ -647,8 +616,7 @@ function ProjectionChart({
   const years = sorted.map((r) => r.year);
   const x0 = Math.min(...years);
   const x1 = Math.max(...years);
-  const xScale = (y: number) =>
-    pad.l + ((y - x0) / Math.max(1, x1 - x0)) * (W - pad.l - pad.r);
+  const xScale = (y: number) => pad.l + ((y - x0) / Math.max(1, x1 - x0)) * (W - pad.l - pad.r);
   const yScale = (v: number | null) => {
     const pct = v ?? 0;
     return pad.t + (1 - pct / 100) * (H - pad.t - pad.b);
@@ -732,15 +700,7 @@ function ProjectionChart({
               {sorted.map((r, i) => {
                 const v = s.values[i];
                 if (v === null || v === undefined) return null;
-                return (
-                  <circle
-                    key={i}
-                    cx={xScale(r.year)}
-                    cy={yScale(v)}
-                    r={3}
-                    fill={s.color}
-                  />
-                );
+                return <circle key={i} cx={xScale(r.year)} cy={yScale(v)} r={3} fill={s.color} />;
               })}
             </g>
           );
@@ -791,25 +751,19 @@ function AdjacentSkillsCard({
         </span>
       </header>
       <p className="mb-3 text-[11.5px] leading-relaxed text-tx-2">
-        Adding these to a profile lowers composite risk because their
-        Frey-Osborne scores sit inside the durable band even at full LMIC
-        calibration.
+        Adding these to a profile lowers composite risk because their Frey-Osborne scores sit inside
+        the durable band even at full LMIC calibration.
       </p>
       <ul className="grid gap-2 sm:grid-cols-2">
         {filtered.map((a) => (
-          <li
-            key={a.isco_code}
-            className="rounded-lg border border-border-soft bg-bg-4 p-3"
-          >
+          <li key={a.isco_code} className="rounded-lg border border-border-soft bg-bg-4 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[12px] font-semibold text-tx-0">{a.name}</p>
               <span className="rounded-full border border-teal/40 bg-teal-soft px-1.5 py-0.5 font-mono text-[9px] font-bold text-teal">
                 ISCO-{a.isco_code}
               </span>
             </div>
-            <p className="mt-1 text-[10.5px] leading-relaxed text-tx-2">
-              {a.rationale}
-            </p>
+            <p className="mt-1 text-[10.5px] leading-relaxed text-tx-2">{a.rationale}</p>
             <div className="mt-2 flex items-center gap-2">
               <div className="h-1 flex-1 rounded bg-bg-2">
                 <div
@@ -828,8 +782,7 @@ function AdjacentSkillsCard({
         to="/skills"
         className="mt-4 inline-flex items-center gap-1 text-[11px] font-semibold text-gold hover:underline"
       >
-        Add adjacent skills in the Skills Engine{" "}
-        <ArrowRight className="h-3 w-3" />
+        Add adjacent skills in the Skills Engine <ArrowRight className="h-3 w-3" />
       </Link>
     </section>
   );

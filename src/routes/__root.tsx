@@ -20,12 +20,10 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <p className="eyebrow mb-2">404 · Lost in the talent graph</p>
         <h1 className="font-display text-7xl font-bold text-tx-0">404</h1>
-        <h2 className="mt-4 font-display text-xl font-semibold text-tx-0">
-          Page not found
-        </h2>
+        <h2 className="mt-4 font-display text-xl font-semibold text-tx-0">Page not found</h2>
         <p className="mt-2 text-sm text-tx-1">
-          That route does not exist in TalentGraph Africa. The product lives
-          across three modules — start at the Overview.
+          That route does not exist in TalentGraph Africa. The product lives across three modules —
+          start at the Overview.
         </p>
         <div className="mt-6">
           <Link
