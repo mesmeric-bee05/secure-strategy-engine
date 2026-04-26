@@ -6,6 +6,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { logClientError } from "@/server/audit.functions";
 import { recordLastError } from "@/lib/last-error";
 
+function safeClientErrorMessage(error: Error): string {
+  if (!error.message) return "unexpected_route_error";
+  return error.message.slice(0, 240);
+}
+
+function visibleErrorMessage(error: Error): string {
+  if (import.meta.env.DEV) return safeClientErrorMessage(error);
+  return "An unexpected error occurred. Please retry or contact support if it continues.";
+}
+
 export interface RouteErrorBoundaryProps {
   error: Error;
   reset: () => void;
@@ -28,21 +38,19 @@ export function RouteErrorBoundary({
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line no-console
     console.error(`[RouteError:${module}]`, error);
     const route =
       typeof window !== "undefined" ? window.location.pathname + window.location.search : "ssr";
     recordLastError({
       module,
       route,
-      message: error.message || "unknown error",
+      message: safeClientErrorMessage(error),
     });
     void logError({
       data: {
         module,
         route,
-        message: error.message || "unknown error",
-        stack: error.stack?.slice(0, 4000),
+        message: safeClientErrorMessage(error),
       },
     }).catch(() => {
       /* never let audit failure cascade */
@@ -57,7 +65,7 @@ export function RouteErrorBoundary({
       reset();
       toast.success(`${module} loaded`, { id: toastId });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Retry failed";
+      const msg = e instanceof Error ? safeClientErrorMessage(e) : "retry_failed";
       toast.error(`Still failing: ${msg}`, { id: toastId });
       void logError({
         data: {
@@ -85,15 +93,15 @@ export function RouteErrorBoundary({
             Something broke loading {module}
           </h2>
         </div>
-        <p className="mb-4 text-[12.5px] leading-relaxed text-tx-1">
-          {error.message || "An unexpected error occurred."}
-        </p>
-        <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
-          <summary className="cursor-pointer text-tx-1">Technical details</summary>
-          <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
-            {error.stack ?? error.message}
-          </pre>
-        </details>
+        <p className="mb-4 text-[12.5px] leading-relaxed text-tx-1">{visibleErrorMessage(error)}</p>
+        {import.meta.env.DEV && (
+          <details className="mb-4 rounded-md border border-border-soft bg-bg-3 p-3 text-[11px] text-tx-2">
+            <summary className="cursor-pointer text-tx-1">Technical details</summary>
+            <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[10.5px]">
+              {error.stack ?? error.message}
+            </pre>
+          </details>
+        )}
         <button
           type="button"
           onClick={handleRetry}

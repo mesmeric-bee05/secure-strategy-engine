@@ -32,7 +32,8 @@ CREATE TABLE public.profiles (
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "profiles_public_read" ON public.profiles FOR SELECT USING (TRUE);
+CREATE POLICY "profiles_private_read" ON public.profiles FOR SELECT
+  USING (auth.uid() = id OR public.has_role(auth.uid(), 'admin'));
 CREATE POLICY "profiles_self_insert" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
@@ -82,6 +83,9 @@ AS $$
     WHERE user_id = _user_id AND role = _role
   )
 $$;
+
+REVOKE ALL ON FUNCTION public.has_role(UUID, public.app_role) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_role(UUID, public.app_role) TO authenticated, service_role;
 
 CREATE POLICY "user_roles_self_read" ON public.user_roles FOR SELECT
   USING (auth.uid() = user_id OR public.has_role(auth.uid(), 'admin'));

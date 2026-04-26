@@ -36,6 +36,8 @@ export async function checkRateLimit(opts: RateLimitOptions): Promise<boolean> {
   });
   if (error) {
     console.error("rl_check failed", error);
+    // Expensive/server-side protected paths should degrade safely if the
+    // backing limiter is unavailable.
     return false;
   }
   return data === true;

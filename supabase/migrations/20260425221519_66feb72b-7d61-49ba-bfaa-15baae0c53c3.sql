@@ -40,7 +40,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.rl_check(TEXT, TEXT, INT, INT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.rl_check(TEXT, TEXT, INT, INT) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.rl_check(TEXT, TEXT, INT, INT) TO service_role;
 
 -- 2. Credential issuance (server-only via service role) ------------------
 CREATE OR REPLACE FUNCTION public.issue_credential(
