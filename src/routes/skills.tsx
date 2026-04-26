@@ -759,7 +759,9 @@ function SkillsPage() {
                     "Editing default draft"
                   )}
                 </span>
-                <SavedIndicator status={persist.status} error={persist.error} />
+                <span className="sm:hidden">
+                  <SavedIndicator status={persist.status} error={persist.error} />
+                </span>
               </div>
               <span
                 className="font-mono text-[10px] text-tx-2"
