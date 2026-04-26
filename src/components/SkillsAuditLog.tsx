@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ChevronDown,
-  Download,
-  RotateCw,
-  ScrollText,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, Download, RotateCw, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -66,10 +59,7 @@ export function SkillsAuditLog() {
     return () => window.clearInterval(handle);
   }, [open]);
 
-  const memoryWarning = useMemo(
-    () => events.some((e) => e.scope === "memory"),
-    [events]
-  );
+  const memoryWarning = useMemo(() => events.some((e) => e.scope === "memory"), [events]);
 
   function refresh() {
     setEvents(readAuditLog());
@@ -102,18 +92,14 @@ export function SkillsAuditLog() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `talentgraph-skills-activity-${new Date()
-        .toISOString()
-        .slice(0, 10)}.json`;
+      a.download = `talentgraph-skills-activity-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success("Activity log downloaded");
     } catch (e) {
-      toast.error(
-        e instanceof Error ? `Download failed: ${e.message}` : "Download failed"
-      );
+      toast.error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
     }
   }
 
@@ -133,15 +119,14 @@ export function SkillsAuditLog() {
         <span className="flex items-center gap-2.5">
           <ScrollText className="h-4 w-4 text-gold" aria-hidden="true" />
           <span className="flex flex-col">
-            <span
-              id="audit-log-title"
-              className="font-display text-[13px] font-semibold text-tx-0"
-            >
+            <span id="audit-log-title" className="font-display text-[13px] font-semibold text-tx-0">
               Local activity log
             </span>
             <span className="text-[10.5px] text-tx-2">
               Imports, exports, and storage warnings recorded on this device
-              {events.length > 0 ? ` · ${events.length} entr${events.length === 1 ? "y" : "ies"}` : ""}
+              {events.length > 0
+                ? ` · ${events.length} entr${events.length === 1 ? "y" : "ies"}`
+                : ""}
             </span>
           </span>
         </span>
@@ -152,10 +137,7 @@ export function SkillsAuditLog() {
       </button>
 
       {open && (
-        <div
-          id="audit-log-body"
-          className="border-t border-border-soft px-5 py-4"
-        >
+        <div id="audit-log-body" className="border-t border-border-soft px-5 py-4">
           <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
@@ -191,15 +173,14 @@ export function SkillsAuditLog() {
               className="mb-2 flex items-start gap-2 rounded-md border border-coral/40 bg-coral-soft/20 px-3 py-2 text-[11px] text-coral"
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
-              Some entries are kept only in memory and will disappear when you
-              close this tab — your browser is blocking persistent storage.
+              Some entries are kept only in memory and will disappear when you close this tab — your
+              browser is blocking persistent storage.
             </p>
           )}
 
           {events.length === 0 ? (
             <p className="rounded-md border border-dashed border-border-soft bg-bg-2 px-4 py-6 text-center text-[11.5px] text-tx-2">
-              Nothing here yet. Imports, exports, and storage warnings will
-              appear here.
+              Nothing here yet. Imports, exports, and storage warnings will appear here.
             </p>
           ) : (
             <ol className="divide-y divide-border-soft overflow-hidden rounded-md border border-border-soft">
@@ -226,9 +207,7 @@ export function SkillsAuditLog() {
                     title={`${e.at} · stored in ${e.scope}`}
                   >
                     {relTime(e.at, now)}
-                    {e.scope === "memory" && (
-                      <span className="ml-1 text-coral">· memory</span>
-                    )}
+                    {e.scope === "memory" && <span className="ml-1 text-coral">· memory</span>}
                   </span>
                 </li>
               ))}

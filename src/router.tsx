@@ -1,18 +1,8 @@
-import {
-  createRouter,
-  useRouter,
-  Link,
-} from "@tanstack/react-router";
+import { createRouter, useRouter, Link } from "@tanstack/react-router";
 import { QueryClient } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 
-function DefaultErrorComponent({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-0 px-4 text-tx-0">
@@ -20,12 +10,9 @@ function DefaultErrorComponent({
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-coral-soft text-coral text-2xl">
           !
         </div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
-          Something went wrong
-        </h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Something went wrong</h1>
         <p className="mt-2 text-sm text-tx-1">
-          The page hit an unexpected error. You can retry or head back to the
-          overview.
+          The page hit an unexpected error. You can retry or head back to the overview.
         </p>
         {import.meta.env.DEV && error.message && (
           <pre className="mt-4 max-h-40 overflow-auto rounded-md border border-border-soft bg-bg-2 p-3 text-left font-mono text-xs text-coral">

@@ -39,7 +39,7 @@ function isExpired(rec: Pick<LastErrorRecord, "at">): boolean {
 }
 
 export function recordLastError(
-  input: Omit<LastErrorRecord, "id" | "at" | "expired">
+  input: Omit<LastErrorRecord, "id" | "at" | "expired">,
 ): LastErrorRecord {
   const rec: LastErrorRecord = {
     ...input,
@@ -91,9 +91,7 @@ export function clearLastError(): void {
   }
 }
 
-export function subscribeLastError(
-  cb: (rec: LastErrorRecord | null) => void
-): () => void {
+export function subscribeLastError(cb: (rec: LastErrorRecord | null) => void): () => void {
   const w = safeWindow();
   if (!w) return () => {};
   const handler = (e: Event) => {

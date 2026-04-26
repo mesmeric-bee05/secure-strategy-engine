@@ -2,10 +2,7 @@ import { useState } from "react";
 import { ChevronDown, Copy, Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  DRAFT_MAP_KEY,
-  LANG_MAP_KEY,
-} from "@/lib/skills-drafts";
+import { DRAFT_MAP_KEY, LANG_MAP_KEY } from "@/lib/skills-drafts";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 const LAST_ERROR_KEY = "talentgraph:last-error"; // session-scoped, see last-error.ts
@@ -61,8 +58,7 @@ export function SkillsPrivacyCard() {
     try {
       const report = {
         generatedAt: new Date().toISOString(),
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : "n/a",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "n/a",
         entries: buildStorageReport(),
       };
       const text = JSON.stringify(report, null, 2);
@@ -73,9 +69,7 @@ export function SkillsPrivacyCard() {
         toast.error("Clipboard not available — open DevTools to inspect storage");
       }
     } catch (e) {
-      toast.error(
-        e instanceof Error ? `Could not copy: ${e.message}` : "Copy failed"
-      );
+      toast.error(e instanceof Error ? `Could not copy: ${e.message}` : "Copy failed");
     }
   }
 
@@ -125,31 +119,23 @@ export function SkillsPrivacyCard() {
               <ul className="ml-5 list-disc space-y-1 text-tx-2">
                 <li>
                   Drafts (per persona) →{" "}
-                  <code className="font-mono text-[10.5px] text-tx-1">
-                    {DRAFT_MAP_KEY}
-                  </code>{" "}
-                  in <strong>localStorage</strong>
+                  <code className="font-mono text-[10.5px] text-tx-1">{DRAFT_MAP_KEY}</code> in{" "}
+                  <strong>localStorage</strong>
                 </li>
                 <li>
                   Recognition language (per persona) →{" "}
-                  <code className="font-mono text-[10.5px] text-tx-1">
-                    {LANG_MAP_KEY}
-                  </code>{" "}
-                  in <strong>localStorage</strong>
+                  <code className="font-mono text-[10.5px] text-tx-1">{LANG_MAP_KEY}</code> in{" "}
+                  <strong>localStorage</strong>
                 </li>
                 <li>
                   Restored-banner dismissal →{" "}
-                  <code className="font-mono text-[10.5px] text-tx-1">
-                    {RESTORED_BANNER_KEY}
-                  </code>{" "}
+                  <code className="font-mono text-[10.5px] text-tx-1">{RESTORED_BANNER_KEY}</code>{" "}
                   in <strong>sessionStorage</strong> (clears when the tab closes)
                 </li>
                 <li>
                   Last client error →{" "}
-                  <code className="font-mono text-[10.5px] text-tx-1">
-                    {LAST_ERROR_KEY}
-                  </code>{" "}
-                  in <strong>sessionStorage</strong>, auto-expires after 24h
+                  <code className="font-mono text-[10.5px] text-tx-1">{LAST_ERROR_KEY}</code> in{" "}
+                  <strong>sessionStorage</strong>, auto-expires after 24h
                 </li>
               </ul>
             </li>
@@ -159,33 +145,28 @@ export function SkillsPrivacyCard() {
                 Sent to the server only when you click "Map to ISCO-08 / ESCO"
               </p>
               <p className="text-tx-2">
-                Your draft text and chosen language are sent for AI mapping.
-                Nothing is uploaded automatically while you type or switch
-                personas. The Speech Recognition API runs in the browser using
-                the device microphone — audio never leaves your machine.
+                Your draft text and chosen language are sent for AI mapping. Nothing is uploaded
+                automatically while you type or switch personas. The Speech Recognition API runs in
+                the browser using the device microphone — audio never leaves your machine.
               </p>
             </li>
 
             <li>
-              <p className="mb-1 font-semibold text-tx-0">
-                What to do if saving fails
-              </p>
+              <p className="mb-1 font-semibold text-tx-0">What to do if saving fails</p>
               <ul className="ml-5 list-disc space-y-1 text-tx-2">
                 <li>
-                  <strong className="text-tx-1">Quota exceeded:</strong> click
-                  Export to back up first, then delete drafts you no longer
-                  need. Saving auto-retries the moment you free space.
+                  <strong className="text-tx-1">Quota exceeded:</strong> click Export to back up
+                  first, then delete drafts you no longer need. Saving auto-retries the moment you
+                  free space.
                 </li>
                 <li>
-                  <strong className="text-tx-1">Private / Incognito mode:</strong>{" "}
-                  some browsers disable persistent storage. Your draft still
-                  works in this tab but won't survive a refresh — Export
-                  before closing.
+                  <strong className="text-tx-1">Private / Incognito mode:</strong> some browsers
+                  disable persistent storage. Your draft still works in this tab but won't survive a
+                  refresh — Export before closing.
                 </li>
                 <li>
-                  <strong className="text-tx-1">Site-data cleared:</strong>{" "}
-                  re-import your most recent JSON backup with the Import
-                  button.
+                  <strong className="text-tx-1">Site-data cleared:</strong> re-import your most
+                  recent JSON backup with the Import button.
                 </li>
               </ul>
             </li>
@@ -193,18 +174,16 @@ export function SkillsPrivacyCard() {
             <li>
               <p className="mb-1 font-semibold text-tx-0">Audit trail</p>
               <p className="text-tx-2">
-                Server-side errors and AI extraction calls are appended to an
-                immutable audit log on the backend. Local errors are summarised
-                in the "Last error" panel above and never include your draft
-                text.
+                Server-side errors and AI extraction calls are appended to an immutable audit log on
+                the backend. Local errors are summarised in the "Last error" panel above and never
+                include your draft text.
               </p>
             </li>
           </ol>
 
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-border-soft pt-3">
             <p className="text-[10.5px] text-tx-2">
-              Generate a JSON snapshot of your local storage usage for a
-              support request.
+              Generate a JSON snapshot of your local storage usage for a support request.
             </p>
             <button
               type="button"

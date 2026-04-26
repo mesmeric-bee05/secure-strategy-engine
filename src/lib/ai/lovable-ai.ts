@@ -37,9 +37,7 @@ export interface ToolCallRequest {
  * Calls the gateway with `tool_choice` forcing the named tool.
  * Returns the parsed tool arguments object.
  */
-export async function callLovableAITool<T = unknown>(
-  req: ToolCallRequest
-): Promise<T> {
+export async function callLovableAITool<T = unknown>(req: ToolCallRequest): Promise<T> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) {
     throw makeError("LOVABLE_API_KEY is not configured", 500);
@@ -82,10 +80,7 @@ export async function callLovableAITool<T = unknown>(
         throw makeError("AI rate limit exceeded — try again shortly", 429);
       }
       if (res.status === 402) {
-        throw makeError(
-          "AI credits exhausted — top up Lovable AI workspace credits",
-          402
-        );
+        throw makeError("AI credits exhausted — top up Lovable AI workspace credits", 402);
       }
       const body = await res.text().catch(() => "");
       console.error("Lovable AI gateway error", res.status, body.slice(0, 400));

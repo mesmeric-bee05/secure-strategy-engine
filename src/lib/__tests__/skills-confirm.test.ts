@@ -15,7 +15,10 @@ interface SwitchEnv {
   current: string | undefined;
 }
 
-function trySwitch(env: SwitchEnv, next: string): {
+function trySwitch(
+  env: SwitchEnv,
+  next: string,
+): {
   switched: boolean;
   promptShown: boolean;
 } {

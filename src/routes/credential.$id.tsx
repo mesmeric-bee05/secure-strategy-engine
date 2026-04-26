@@ -15,6 +15,10 @@ import {
   type VerificationState,
 } from "@/lib/credentials";
 
+function sanitizeCredentialId(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 64);
+}
+
 export const Route = createFileRoute("/credential/$id")({
   head: ({ params }) => ({
     meta: [
@@ -37,23 +41,26 @@ export const Route = createFileRoute("/credential/$id")({
     ],
   }),
   loader: ({ context, params }) => {
-    if (params.id === "preview") return;
+    const id = sanitizeCredentialId(params.id);
+    if (!id || id === "preview") return;
     void context.queryClient.prefetchQuery({
-      queryKey: ["credential", params.id],
-      queryFn: () => getCredentialById({ data: { id: params.id } }),
+      queryKey: ["credential", id],
+      queryFn: () => getCredentialById({ data: { id } }),
     });
   },
   component: CredentialVerifyPage,
 });
 
 function CredentialVerifyPage() {
-  const { id } = Route.useParams();
+  const { id: rawId } = Route.useParams();
+  const id = sanitizeCredentialId(rawId);
   const isPreview = id === "preview";
+  const canLookup = Boolean(id) && !isPreview;
 
   const credentialQ = useQuery({
-    queryKey: ["credential", id],
+    queryKey: ["credential", id || "invalid"],
     queryFn: () => getCredentialById({ data: { id } }),
-    enabled: !isPreview,
+    enabled: canLookup,
   });
 
   const state: VerificationState = isPreview
@@ -74,6 +81,8 @@ function CredentialVerifyPage() {
 
         {isPreview ? (
           <PreviewCard />
+        ) : !id ? (
+          <NotFoundCard id={rawId} />
         ) : credentialQ.isLoading ? (
           <SkeletonCard />
         ) : !credentialQ.data ? (

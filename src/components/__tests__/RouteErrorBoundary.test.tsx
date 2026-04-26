@@ -23,9 +23,7 @@ vi.mock("@tanstack/react-start", () => ({
 
 const toastSuccess = vi.fn<(message: string, opts?: unknown) => void>();
 const toastError = vi.fn<(message: string, opts?: unknown) => void>();
-const toastLoading = vi.fn<(message: string, opts?: unknown) => string>(
-  () => "toast-id"
-);
+const toastLoading = vi.fn<(message: string, opts?: unknown) => string>(() => "toast-id");
 vi.mock("sonner", () => ({
   toast: {
     success: (message: string, opts?: unknown) => toastSuccess(message, opts),
@@ -55,7 +53,7 @@ describe("RouteErrorBoundary retry flow", () => {
         error={new Error("boom on load")}
         reset={reset}
         module="Skills Signal Engine"
-      />
+      />,
     );
     await waitFor(() => {
       expect(logErrorImpl).toHaveBeenCalledTimes(1);
@@ -76,7 +74,7 @@ describe("RouteErrorBoundary retry flow", () => {
         error={new Error("transient failure")}
         reset={reset}
         module="Skills Signal Engine"
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
@@ -86,7 +84,7 @@ describe("RouteErrorBoundary retry flow", () => {
       expect(reset).toHaveBeenCalled();
       expect(toastSuccess).toHaveBeenCalledWith(
         "Skills Signal Engine loaded",
-        expect.objectContaining({ id: "toast-id" })
+        expect.objectContaining({ id: "toast-id" }),
       );
     });
   });
@@ -100,7 +98,7 @@ describe("RouteErrorBoundary retry flow", () => {
         error={new Error("initial failure")}
         reset={reset}
         module="Skills Signal Engine"
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
@@ -108,7 +106,7 @@ describe("RouteErrorBoundary retry flow", () => {
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         expect.stringContaining("still down"),
-        expect.objectContaining({ id: "toast-id" })
+        expect.objectContaining({ id: "toast-id" }),
       );
       // One log on mount + one on retry failure.
       expect(logErrorImpl).toHaveBeenCalledTimes(2);

@@ -28,7 +28,7 @@ describe("LastErrorPanel — expiry rendering", () => {
         route: "/skills",
         message: "stale boom",
         at: staleAt,
-      })
+      }),
     );
 
     render(<LastErrorPanel />);
@@ -55,7 +55,7 @@ describe("LastErrorPanel — expiry rendering", () => {
         route: "/skills",
         message: "fresh boom",
         at: freshAt,
-      })
+      }),
     );
 
     render(<LastErrorPanel />);

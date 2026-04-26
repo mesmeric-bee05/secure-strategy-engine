@@ -12,14 +12,7 @@ export const LEGACY_DRAFT_KEY = "talentgraph:skills:draft";
 export const LEGACY_LANG_KEY = "talentgraph:skills:lang";
 
 /** BCP-47 codes the /skills page supports for SpeechRecognition. */
-export const SUPPORTED_LANGS = [
-  "en-US",
-  "en-GB",
-  "sw-KE",
-  "sw-TZ",
-  "fr-FR",
-  "ha-NG",
-] as const;
+export const SUPPORTED_LANGS = ["en-US", "en-GB", "sw-KE", "sw-TZ", "fr-FR", "ha-NG"] as const;
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
 
 /**
@@ -29,9 +22,7 @@ export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
 export function readJSONMap<T extends string>(
   primaryKey: string,
   legacyKey: string,
-  storage: Storage | undefined = typeof window !== "undefined"
-    ? window.localStorage
-    : undefined
+  storage: Storage | undefined = typeof window !== "undefined" ? window.localStorage : undefined,
 ): Record<string, T> {
   if (!storage) return {};
   try {
@@ -54,7 +45,7 @@ export function readJSONMap<T extends string>(
 export function hasUnsavedChanges(
   current: Record<string, string>,
   saved: Record<string, string>,
-  slug: string
+  slug: string,
 ): boolean {
   return (current[slug] ?? "").trim() !== (saved[slug] ?? "").trim();
 }
@@ -62,7 +53,7 @@ export function hasUnsavedChanges(
 /** Number of persona slugs in `current` that diverge from `saved`. */
 export function unsavedCount(
   current: Record<string, string>,
-  saved: Record<string, string>
+  saved: Record<string, string>,
 ): number {
   const slugs = new Set([...Object.keys(current), ...Object.keys(saved)]);
   let n = 0;
@@ -191,10 +182,7 @@ const SafeText = (maxLen: number) =>
       } catch (e) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message:
-            e instanceof SafeTextError
-              ? `unsafe content: ${e.message}`
-              : "unsafe content",
+          message: e instanceof SafeTextError ? `unsafe content: ${e.message}` : "unsafe content",
           params: { unsafeContent: true },
         });
       }
@@ -276,7 +264,7 @@ export function parseImport(input: unknown): ParsedImport {
 /** Merge an import on top of current state ("new wins" for matching keys). */
 export function mergeImport<T extends Record<string, string>>(
   current: T,
-  incoming: Record<string, string>
+  incoming: Record<string, string>,
 ): T {
   return { ...current, ...incoming } as T;
 }
@@ -388,18 +376,14 @@ export function buildLocalDataDump({
   now = new Date(),
   appVersion = "preview",
 }: LocalDataDumpInput): LocalDataDump {
-  const slugs = Array.from(
-    new Set([...Object.keys(drafts), ...Object.keys(languages)])
-  ).sort();
+  const slugs = Array.from(new Set([...Object.keys(drafts), ...Object.keys(languages)])).sort();
   const personas: LocalDataDumpPersona[] = slugs.map((slug) => {
     const text = drafts[slug] ?? "";
     return {
       slug,
       charCount: text.length,
       lastSavedLanguage: languages[slug] ?? null,
-      unsavedAtExportTime: savedSnapshot
-        ? hasUnsavedChanges(drafts, savedSnapshot, slug)
-        : false,
+      unsavedAtExportTime: savedSnapshot ? hasUnsavedChanges(drafts, savedSnapshot, slug) : false,
       preview: text.slice(0, 80),
       text,
     };

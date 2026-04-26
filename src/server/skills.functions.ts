@@ -94,37 +94,38 @@ const TOOL_SCHEMA = {
 /* Server functions                                                           */
 /* -------------------------------------------------------------------------- */
 
-export const listPersonas = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const sb = getSupabasePublic();
-    const { data, error } = await sb
-      .from("personas")
-      .select(
-        "slug,display_name,emoji,occupation,location,country_code,description,prefill_text,sort_order"
-      )
-      .order("sort_order");
-    if (error) {
-      console.error("listPersonas", error);
-      return { personas: [] as never[], error: "Could not load personas" };
-    }
-    return { personas: data ?? [], error: null };
+export const listPersonas = createServerFn({ method: "GET" }).handler(async () => {
+  const sb = getSupabasePublic();
+  const { data, error } = await sb
+    .from("personas")
+    .select(
+      "slug,display_name,emoji,occupation,location,country_code,description,prefill_text,sort_order",
+    )
+    .order("sort_order");
+  if (error) {
+    console.error("listPersonas", error);
+    return { personas: [] as never[], error: "Could not load personas" };
   }
-);
+  return { personas: data ?? [], error: null };
+});
 
 export const extractSkills = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ExtractSkillsInput.parse(input))
   .handler(
     async ({
       data,
-    }): Promise<{
-      ok: true;
-      result: ExtractSkillsOutputT;
-      sanitized: boolean;
-      warnings: string[];
-    } | { ok: false; error: string; status: number }> => {
+    }): Promise<
+      | {
+          ok: true;
+          result: ExtractSkillsOutputT;
+          sanitized: boolean;
+          warnings: string[];
+        }
+      | { ok: false; error: string; status: number }
+    > => {
       let ip: string | null = null;
       try {
-        ip = getRequestIP({ xForwardedFor: true }) ?? null;
+        ip = getRequestIP({ xForwardedFor: false }) ?? null;
       } catch {
         // ignore — request context might be unavailable in some test paths
       }
@@ -133,28 +134,30 @@ export const extractSkills = createServerFn({ method: "POST" })
         await enforceRateLimit({
           bucket: "ai:skills:extract",
           identifier: ip ?? "anon",
-          limit: 30,
+          limit: 20,
           windowSeconds: 60,
         });
       } catch (e) {
         if (e instanceof RateLimitError) {
           return {
             ok: false,
-            error:
-              "Too many extractions in a short time. Please wait a moment and try again.",
+            error: "Too many extractions in a short time. Please wait a moment and try again.",
             status: 429,
           };
         }
-        throw e;
+        console.error("Rate limit infrastructure error, blocking request", e);
+        return {
+          ok: false,
+          error: "Service temporarily unavailable. Please try again later.",
+          status: 503,
+        };
       }
 
       // Defense-in-depth: strip injection patterns before sending to the model
       const guard = sanitizeUserPrompt(data.text);
 
       // Persona context boosts accuracy without overriding user text
-      const personaCtx = data.personaSlug
-        ? await loadPersonaContext(data.personaSlug)
-        : null;
+      const personaCtx = data.personaSlug ? await loadPersonaContext(data.personaSlug) : null;
 
       const userPrompt = [
         personaCtx ? `Context — persona: ${personaCtx}` : null,
@@ -174,8 +177,7 @@ export const extractSkills = createServerFn({ method: "POST" })
           userPrompt,
           tool: {
             name: "extract_skills",
-            description:
-              "Return the extracted, ISCO-08-mapped skill profile.",
+            description: "Return the extracted, ISCO-08-mapped skill profile.",
             parameters: TOOL_SCHEMA as unknown as Record<string, unknown>,
           },
         });
@@ -214,23 +216,19 @@ export const extractSkills = createServerFn({ method: "POST" })
       // Cross-reference each ISCO code against the seeded taxonomy. Drop
       // unknown codes rather than write made-up data.
       const sb = getSupabasePublic();
-      const codes = Array.from(
-        new Set(parsed.data.skills.map((s) => s.isco_code))
-      );
+      const codes = Array.from(new Set(parsed.data.skills.map((s) => s.isco_code)));
       const { data: known } = await sb
         .from("isco_taxonomy")
         .select("isco_code,title,category")
         .in("isco_code", codes);
       const knownCodes = new Set(known?.map((k) => k.isco_code) ?? []);
 
-      const filtered = parsed.data.skills.filter((s) =>
-        knownCodes.has(s.isco_code)
-      );
+      const filtered = parsed.data.skills.filter((s) => knownCodes.has(s.isco_code));
 
       const warnings: string[] = [];
       if (filtered.length < parsed.data.skills.length) {
         warnings.push(
-          `${parsed.data.skills.length - filtered.length} skill(s) had unknown ISCO codes and were filtered`
+          `${parsed.data.skills.length - filtered.length} skill(s) had unknown ISCO codes and were filtered`,
         );
       }
       if (guard.modified) warnings.push("Input was sanitized for safety");
@@ -252,7 +250,7 @@ export const extractSkills = createServerFn({ method: "POST" })
         warnings,
         result: { ...parsed.data, skills: filtered },
       };
-    }
+    },
   );
 
 async function loadPersonaContext(slug: string): Promise<string | null> {

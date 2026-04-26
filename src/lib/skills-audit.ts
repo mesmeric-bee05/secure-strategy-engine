@@ -60,9 +60,7 @@ function safeWindow(): Window | null {
 }
 
 function newId(): string {
-  return `aud_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+  return `aud_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function readRaw(): AuditEvent[] {
@@ -138,7 +136,9 @@ export function appendAuditEvent(input: AppendEventInput): AuditEvent {
 }
 
 export function readAuditLog(): AuditEvent[] {
-  return readRaw().slice().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return readRaw()
+    .slice()
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 }
 
 export function clearAuditLog(): void {

@@ -1,9 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import {
-  ListOpportunitiesInput,
-  MatchOpportunitiesInput,
-  PERSONA_SLUG,
-} from "@/lib/schemas";
+import { ListOpportunitiesInput, MatchOpportunitiesInput, PERSONA_SLUG } from "@/lib/schemas";
 import { getSupabasePublic } from "@/lib/supabase-server";
 
 export interface OpportunityCardDTO {
@@ -27,15 +23,13 @@ export interface OpportunityCardDTO {
 }
 
 export const listOpportunities = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) =>
-    ListOpportunitiesInput.parse(input ?? {})
-  )
+  .inputValidator((input: unknown) => ListOpportunitiesInput.parse(input ?? {}))
   .handler(async ({ data }): Promise<OpportunityCardDTO[]> => {
     const sb = getSupabasePublic();
     let q = sb
       .from("opportunities")
       .select(
-        "id,title,employer,description,required_skills,required_isco_codes,salary_min,salary_max,currency,salary_period,is_remote,country_code,location,growth_pct,source,source_citation"
+        "id,title,employer,description,required_skills,required_isco_codes,salary_min,salary_max,currency,salary_period,is_remote,country_code,location,growth_pct,source,source_citation",
       )
       .order("created_at", { ascending: false })
       .limit(data.limit);
@@ -55,22 +49,18 @@ export const listOpportunities = createServerFn({ method: "GET" })
  * keeps the demo deterministic.
  */
 export const matchOpportunities = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) =>
-    MatchOpportunitiesInput.parse(input ?? {})
-  )
+  .inputValidator((input: unknown) => MatchOpportunitiesInput.parse(input ?? {}))
   .handler(async ({ data }): Promise<OpportunityCardDTO[]> => {
     const sb = getSupabasePublic();
 
     const personaSkillSeeds = data.personaSlug
-      ? PERSONA_SKILL_SEEDS[
-          PERSONA_SLUG.parse(data.personaSlug)
-        ]
+      ? PERSONA_SKILL_SEEDS[PERSONA_SLUG.parse(data.personaSlug)]
       : null;
 
     let q = sb
       .from("opportunities")
       .select(
-        "id,title,employer,description,required_skills,required_isco_codes,salary_min,salary_max,currency,salary_period,is_remote,country_code,location,growth_pct,source,source_citation"
+        "id,title,employer,description,required_skills,required_isco_codes,salary_min,salary_max,currency,salary_period,is_remote,country_code,location,growth_pct,source,source_citation",
       )
       .limit(50);
     if (data.countryCode) q = q.eq("country_code", data.countryCode);
@@ -86,13 +76,10 @@ export const matchOpportunities = createServerFn({ method: "GET" })
     }
 
     const scored = rows.map((opp) => {
-      const iscoOverlap = countOverlap(
-        opp.required_isco_codes ?? [],
-        personaSkillSeeds.iscoCodes
-      );
+      const iscoOverlap = countOverlap(opp.required_isco_codes ?? [], personaSkillSeeds.iscoCodes);
       const kwOverlap = countOverlapInsensitive(
         opp.required_skills ?? [],
-        personaSkillSeeds.keywords
+        personaSkillSeeds.keywords,
       );
 
       // Weighted score: ISCO match 60%, keyword match 30%, base 10%.
@@ -101,9 +88,7 @@ export const matchOpportunities = createServerFn({ method: "GET" })
           ? iscoOverlap / personaSkillSeeds.iscoCodes.length
           : 0;
       const kwScore =
-        personaSkillSeeds.keywords.length > 0
-          ? kwOverlap / personaSkillSeeds.keywords.length
-          : 0;
+        personaSkillSeeds.keywords.length > 0 ? kwOverlap / personaSkillSeeds.keywords.length : 0;
       const raw = 0.6 * iscoScore + 0.3 * kwScore + 0.1;
       const match_pct = Math.round(Math.min(0.99, raw) * 100);
       return { ...(opp as OpportunityCardDTO), match_pct };
@@ -113,22 +98,20 @@ export const matchOpportunities = createServerFn({ method: "GET" })
     return scored.slice(0, data.limit);
   });
 
-export const listCountries = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const sb = getSupabasePublic();
-    const { data, error } = await sb
-      .from("countries")
-      .select(
-        "code,name,flag_emoji,currency,youth_unemployment_pct,min_wage_monthly_usd,min_wage_local,informal_share_pct,human_capital_index,population_millions,unemployment_source,wage_source,informal_source,hci_source"
-      )
-      .order("name");
-    if (error) {
-      console.error("listCountries", error);
-      return [];
-    }
-    return data ?? [];
+export const listCountries = createServerFn({ method: "GET" }).handler(async () => {
+  const sb = getSupabasePublic();
+  const { data, error } = await sb
+    .from("countries")
+    .select(
+      "code,name,flag_emoji,currency,youth_unemployment_pct,min_wage_monthly_usd,min_wage_local,informal_share_pct,human_capital_index,population_millions,unemployment_source,wage_source,informal_source,hci_source",
+    )
+    .order("name");
+  if (error) {
+    console.error("listCountries", error);
+    return [];
   }
-);
+  return data ?? [];
+});
 
 export type CountryRow = Awaited<ReturnType<typeof listCountries>>[number];
 
@@ -144,13 +127,7 @@ const PERSONA_SKILL_SEEDS: Record<
 > = {
   sarah: {
     iscoCodes: ["7531", "7318", "5223"],
-    keywords: [
-      "sewing",
-      "pattern making",
-      "embroidery",
-      "quality control",
-      "customer service",
-    ],
+    keywords: ["sewing", "pattern making", "embroidery", "quality control", "customer service"],
   },
   james: {
     iscoCodes: ["7421", "5230", "3322"],
@@ -164,22 +141,11 @@ const PERSONA_SKILL_SEEDS: Record<
   },
   amara: {
     iscoCodes: ["6111", "6121", "3322"],
-    keywords: [
-      "crop production",
-      "cooperative leadership",
-      "record keeping",
-      "negotiation",
-    ],
+    keywords: ["crop production", "cooperative leadership", "record keeping", "negotiation"],
   },
   kwame: {
     iscoCodes: ["3322", "5223", "8322"],
-    keywords: [
-      "logistics",
-      "negotiation",
-      "customer service",
-      "languages",
-      "inventory management",
-    ],
+    keywords: ["logistics", "negotiation", "customer service", "languages", "inventory management"],
   },
 };
 

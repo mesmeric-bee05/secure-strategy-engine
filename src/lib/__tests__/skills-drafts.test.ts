@@ -98,7 +98,7 @@ describe("skills-drafts: per-persona persistence", () => {
         exportedAt: new Date().toISOString(),
         drafts: {},
         languages: {},
-      })
+      }),
     ).toThrow();
   });
 });
@@ -117,26 +117,22 @@ describe("parseImport: hardened shape validation", () => {
   });
 
   it("rejects drafts that is an array", () => {
-    expect(() =>
-      parseImport({ ...baseValid(), drafts: ["a", "b"] as unknown })
-    ).toThrow();
+    expect(() => parseImport({ ...baseValid(), drafts: ["a", "b"] as unknown })).toThrow();
   });
 
   it("rejects drafts with a non-string value", () => {
     expect(() =>
-      parseImport({ ...baseValid(), drafts: { sarah: 123 as unknown as string } })
+      parseImport({ ...baseValid(), drafts: { sarah: 123 as unknown as string } }),
     ).toThrow();
   });
 
   it("rejects languages that is null", () => {
-    expect(() =>
-      parseImport({ ...baseValid(), languages: null as unknown as object })
-    ).toThrow();
+    expect(() => parseImport({ ...baseValid(), languages: null as unknown as object })).toThrow();
   });
 
   it("strips __proto__ rather than allowing prototype pollution", () => {
     const malicious = JSON.parse(
-      `{"version":1,"exportedAt":"2026-01-01T00:00:00.000Z","drafts":{"__proto__":"x","sarah":"ok"},"languages":{}}`
+      `{"version":1,"exportedAt":"2026-01-01T00:00:00.000Z","drafts":{"__proto__":"x","sarah":"ok"},"languages":{}}`,
     );
     const parsed = parseImport(malicious);
     expect(parsed.drafts).toEqual({ sarah: "ok" });
@@ -144,9 +140,7 @@ describe("parseImport: hardened shape validation", () => {
   });
 
   it("rejects unknown top-level keys (strict)", () => {
-    expect(() =>
-      parseImport({ ...baseValid(), evil: "extra" } as unknown)
-    ).toThrow();
+    expect(() => parseImport({ ...baseValid(), evil: "extra" } as unknown)).toThrow();
   });
 
   it("drops empty/whitespace-only drafts", () => {
@@ -162,16 +156,14 @@ describe("parseImport: hardened shape validation", () => {
       parseImport({
         ...baseValid(),
         drafts: { "has space": "x" },
-      })
+      }),
     ).toThrow();
   });
 });
 
 describe("friendlyImportError", () => {
   it("describes JSON syntax errors", () => {
-    expect(friendlyImportError(new SyntaxError("bad json"))).toMatch(
-      /not valid JSON/i
-    );
+    expect(friendlyImportError(new SyntaxError("bad json"))).toMatch(/not valid JSON/i);
   });
 
   it("describes version mismatch", () => {

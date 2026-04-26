@@ -31,11 +31,7 @@ export interface UseDebouncedLocalStorageReturn {
 export function useDebouncedLocalStorage(
   key: string,
   value: string,
-  {
-    delayMs = 500,
-    flashSaved = true,
-    flashMs = 1500,
-  }: UseDebouncedLocalStorageOptions = {}
+  { delayMs = 500, flashSaved = true, flashMs = 1500 }: UseDebouncedLocalStorageOptions = {},
 ): UseDebouncedLocalStorageReturn {
   const [status, setStatus] = useState<PersistStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +71,7 @@ export function useDebouncedLocalStorage(
         return false;
       }
     },
-    [key, flashSaved, flashMs]
+    [key, flashSaved, flashMs],
   );
 
   // Debounced primary write effect.

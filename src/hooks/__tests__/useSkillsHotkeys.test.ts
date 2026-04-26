@@ -31,7 +31,7 @@ describe("useSkillsHotkeys", () => {
         onImport,
         onPrevPersona: onPrev,
         onNextPersona: onNext,
-      })
+      }),
     );
   }
 
@@ -71,7 +71,7 @@ describe("useSkillsHotkeys", () => {
         key: "ArrowRight",
         altKey: true,
         bubbles: true,
-      })
+      }),
     );
     expect(onNext).not.toHaveBeenCalled();
   });
@@ -92,7 +92,7 @@ describe("useSkillsHotkeys", () => {
         onPrevPersona: onPrev,
         onNextPersona: onNext,
         enabled: false,
-      })
+      }),
     );
     dispatchKey({ key: "s", ctrlKey: true });
     dispatchKey({ key: "ArrowRight", altKey: true });

@@ -24,6 +24,21 @@ const INJECTION_PATTERNS: readonly RegExp[] = [
   /<\|.*?\|>/g,
   /###\s*(?:instruction|system|new\s+instructions?)/gi,
   /developer\s+mode/gi,
+  /do\s+anything\s+now/gi,
+  /DAN\s+mode/gi,
+  /bypass\s+(?:all|any|your)\s+(?:restrictions?|filters?|rules?|guidelines?)/gi,
+  /override\s+(?:your|all|any)\s+(?:instructions?|rules?|guidelines?)/gi,
+  /new\s+(?:system|initial)\s+(?:prompt|instruction)/gi,
+  /\bsudo\s+mode\b/gi,
+  /reveal\s+(?:your|the)\s+(?:system|initial|original)\s+(?:prompt|instructions?)/gi,
+  /repeat\s+(?:your|the)\s+(?:system|initial|original)\s+(?:prompt|instructions?)/gi,
+  /(?:output|print|show|display)\s+(?:your|the)\s+(?:system|initial)\s+(?:prompt|instructions?)/gi,
+  /simulate\s+(?:a|an)\s+(?:unrestricted|unfiltered|jailbroken)/gi,
+  /hypothetical(?:ly)?\s+(?:speaking|scenario)\s+(?:where|in\s+which)\s+you/gi,
+  /roleplay\s+as\s+/gi,
+  /in\s+(?:a|this)\s+(?:fictional|hypothetical)\s+(?:world|scenario|universe)/gi,
+  /\bbase64\s*:/gi,
+  /eval\s*\(/gi,
 ];
 
 // Zero-width / bidi / control characters frequently used to smuggle prompts.

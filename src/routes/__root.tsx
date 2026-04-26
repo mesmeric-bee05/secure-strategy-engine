@@ -74,6 +74,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content:
           "AI + cryptographic credentials for the 600M unmapped informal workers of Sub-Saharan Africa.",
       },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

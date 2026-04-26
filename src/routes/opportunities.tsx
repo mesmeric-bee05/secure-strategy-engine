@@ -38,8 +38,7 @@ export const Route = createFileRoute("/opportunities")({
   head: () => ({
     meta: [
       {
-        title:
-          "Opportunity Dashboard — Real ILO signals · TalentGraph Africa",
+        title: "Opportunity Dashboard — Real ILO signals · TalentGraph Africa",
       },
       {
         name: "description",
@@ -76,11 +75,7 @@ export const Route = createFileRoute("/opportunities")({
   },
   errorComponent: ({ error, reset }) => (
     <AppShell>
-      <RouteErrorBoundary
-        error={error}
-        reset={reset}
-        module="Opportunity Dashboard"
-      />
+      <RouteErrorBoundary error={error} reset={reset} module="Opportunity Dashboard" />
     </AppShell>
   ),
   component: OpportunitiesPage,
@@ -92,8 +87,7 @@ function OpportunitiesPage() {
 
   const setCountry = (country: typeof search.country) =>
     navigate({ search: (s) => ({ ...s, country }) });
-  const setView = (view: "youth" | "policymaker") =>
-    navigate({ search: (s) => ({ ...s, view }) });
+  const setView = (view: "youth" | "policymaker") => navigate({ search: (s) => ({ ...s, view }) });
   const setPersona = (persona: typeof search.persona) =>
     navigate({ search: (s) => ({ ...s, persona }) });
 
@@ -198,9 +192,7 @@ function OpportunitiesPage() {
             <Eco
               tone="teal"
               value={
-                country.human_capital_index
-                  ? Number(country.human_capital_index).toFixed(2)
-                  : "—"
+                country.human_capital_index ? Number(country.human_capital_index).toFixed(2) : "—"
               }
               label="Human Capital Index"
               chip="WB HCI"
@@ -239,9 +231,7 @@ function OpportunitiesPage() {
                 <button
                   key={p.slug}
                   type="button"
-                  onClick={() =>
-                    setPersona(search.persona === p.slug ? undefined : p.slug)
-                  }
+                  onClick={() => setPersona(search.persona === p.slug ? undefined : p.slug)}
                   className={chip(search.persona === p.slug)}
                 >
                   {p.label}
@@ -255,18 +245,14 @@ function OpportunitiesPage() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              {(search.persona
-                ? matchedQ.data ?? []
-                : opportunitiesQ.data ?? []
-              ).map((o) => (
+              {(search.persona ? (matchedQ.data ?? []) : (opportunitiesQ.data ?? [])).map((o) => (
                 <OpportunityCard key={o.id} o={o} matched={!!search.persona} />
               ))}
-              {!opportunitiesQ.isLoading &&
-                (opportunitiesQ.data ?? []).length === 0 && (
-                  <div className="rounded-xl border border-border-soft bg-bg-3 p-6 text-center text-[12px] text-tx-2">
-                    No opportunities seeded for this country yet.
-                  </div>
-                )}
+              {!opportunitiesQ.isLoading && (opportunitiesQ.data ?? []).length === 0 && (
+                <div className="rounded-xl border border-border-soft bg-bg-3 p-6 text-center text-[12px] text-tx-2">
+                  No opportunities seeded for this country yet.
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -354,19 +340,15 @@ function OpportunityCard({ o, matched }: { o: OpportunityCardDTO; matched: boole
     <article className="rounded-xl border border-border-soft bg-bg-3 p-4 transition hover:-translate-y-[1px] hover:border-gold-glow">
       <div className="flex items-start gap-3">
         {matched && (
-          <div className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded border-[1.5px] ${matchTone}`}>
-            <span className="font-mono text-[14px] font-bold leading-none">
-              {o.match_pct ?? 0}
-            </span>
-            <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider">
-              MATCH
-            </span>
+          <div
+            className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded border-[1.5px] ${matchTone}`}
+          >
+            <span className="font-mono text-[14px] font-bold leading-none">{o.match_pct ?? 0}</span>
+            <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider">MATCH</span>
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-semibold leading-tight text-tx-0">
-            {o.title}
-          </h3>
+          <h3 className="text-[13px] font-semibold leading-tight text-tx-0">{o.title}</h3>
           <p className="mt-0.5 text-[11px] text-tx-2">
             {o.employer ?? "—"} · {o.location ?? "—"}
           </p>
@@ -405,9 +387,7 @@ function OpportunityCard({ o, matched }: { o: OpportunityCardDTO; matched: boole
         </span>
       </div>
       {o.source && (
-        <p className="mt-2 text-[9px] italic text-tx-2">
-          Source: {o.source_citation ?? o.source}
-        </p>
+        <p className="mt-2 text-[9px] italic text-tx-2">Source: {o.source_citation ?? o.source}</p>
       )}
     </article>
   );
@@ -462,17 +442,14 @@ function PolicymakerView({
               >
                 <p className="font-mono text-[9px] text-tx-2">ISCO-{code}</p>
                 <p className="text-[11px] font-semibold text-tx-0">{label}</p>
-                <p className="font-mono text-[12px] font-bold text-gold">
-                  {v}
-                </p>
+                <p className="font-mono text-[12px] font-bold text-gold">{v}</p>
               </div>
             );
           })}
         </div>
         <p className="mt-3 text-[10px] italic text-tx-2">
-          Heatmap derived from `opportunities.required_isco_codes` for the
-          selected country. Future iterations layer in skill-supply counts from
-          the user-side `skills` table.
+          Heatmap derived from `opportunities.required_isco_codes` for the selected country. Future
+          iterations layer in skill-supply counts from the user-side `skills` table.
         </p>
       </section>
 
