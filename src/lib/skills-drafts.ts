@@ -427,6 +427,7 @@ export function buildLocalDataDump({
         value: languages,
       },
     },
+    personas,
     notes: [
       "This file is a human-readable snapshot of the data this app stores on YOUR device.",
       "It is NOT the re-importable backup — use the Export button for that.",
