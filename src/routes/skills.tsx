@@ -803,6 +803,8 @@ function SkillsPage() {
           </div>
         </div>
 
+        <SkillsPrivacyCard />
+
         <CitationsPanel citations={citationsQ.data ?? []} />
       </div>
     </AppShell>
