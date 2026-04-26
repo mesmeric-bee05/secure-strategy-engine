@@ -160,18 +160,17 @@ function SkillsPage() {
 
   const language: SpeechLang = langMap[personaKey] ?? "en-US";
   function setLanguage(next: SpeechLang) {
-    setLangMap((prev) => {
-      const updated = { ...prev, [personaKey]: next };
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(LANG_MAP_KEY, JSON.stringify(updated));
-        } catch {
-          /* noop */
-        }
-      }
-      return updated;
-    });
+    setLangMap((prev) => ({ ...prev, [personaKey]: next }));
   }
+
+  // Persist langMap through the same debounced/quota-aware path as the draft
+  // map so a language flip never bypasses the quota recovery flow. We don't
+  // expose this status separately — the Saved indicator already covers the
+  // (much more common) draft writes.
+  useDebouncedLocalStorage(LANG_MAP_KEY, JSON.stringify(langMap), {
+    delayMs: 200,
+    flashSaved: false,
+  });
 
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<number | null>(null);
@@ -368,20 +367,7 @@ function SkillsPage() {
               );
         if (!ok) return;
         setDraftMap((prev) => ({ ...prev, ...parsed.drafts }));
-        setLangMap((prev) => {
-          const updated = { ...prev, ...parsed.languages };
-          if (typeof window !== "undefined") {
-            try {
-              window.localStorage.setItem(
-                LANG_MAP_KEY,
-                JSON.stringify(updated)
-              );
-            } catch {
-              /* noop */
-            }
-          }
-          return updated;
-        });
+        setLangMap((prev) => ({ ...prev, ...parsed.languages }));
         toast.success(
           `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}` +
             (parsed.droppedLanguages.length

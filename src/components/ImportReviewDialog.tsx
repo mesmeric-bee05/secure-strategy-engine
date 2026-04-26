@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, FileText } from "lucide-react";
 
 import {
@@ -47,16 +47,18 @@ export function ImportReviewDialog({
 }: ImportReviewDialogProps) {
   const [staged, setStaged] = useState<StagedRow[]>(rows);
 
-  // Reset when the parent re-stages (new file batch).
-  useMemo(() => setStaged(rows), [rows]);
+  // Reset when the parent re-stages (new file batch). useEffect, not useMemo:
+  // useMemo must be a pure computation; setState inside a memo can fire twice
+  // in StrictMode and mid-render, both of which trigger React warnings.
+  useEffect(() => {
+    setStaged(rows);
+  }, [rows]);
 
   const applyCount = staged.filter((r) => r.action !== "keep").length;
 
   function setAction(slug: string, source: string, action: ConflictAction) {
     setStaged((prev) =>
-      prev.map((r) =>
-        r.slug === slug && r.source === source ? { ...r, action } : r
-      )
+      prev.map((r) => (r.slug === slug && r.source === source ? { ...r, action } : r)),
     );
   }
 
@@ -66,9 +68,8 @@ export function ImportReviewDialog({
         <DialogHeader>
           <DialogTitle>Review import</DialogTitle>
           <DialogDescription>
-            Choose what to do for each persona. Only rows set to{" "}
-            <strong>Overwrite</strong> or <strong>Append</strong> will change
-            your drafts.
+            Choose what to do for each persona. Only rows set to <strong>Overwrite</strong> or{" "}
+            <strong>Append</strong> will change your drafts.
           </DialogDescription>
         </DialogHeader>
 
@@ -79,8 +80,7 @@ export function ImportReviewDialog({
           >
             <p className="mb-1 flex items-center gap-1.5 font-semibold">
               <AlertCircle className="h-3 w-3" aria-hidden="true" />
-              {errors.length} file{errors.length === 1 ? "" : "s"} could not be
-              read
+              {errors.length} file{errors.length === 1 ? "" : "s"} could not be read
             </p>
             <ul className="ml-4 list-disc space-y-0.5">
               {errors.map((e, i) => (
@@ -93,9 +93,7 @@ export function ImportReviewDialog({
         )}
 
         {staged.length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-tx-2">
-            No drafts to review.
-          </p>
+          <p className="py-4 text-center text-[12px] text-tx-2">No drafts to review.</p>
         ) : (
           <ul className="space-y-3">
             {staged.map((row) => (
@@ -105,9 +103,7 @@ export function ImportReviewDialog({
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
-                    <p className="font-display text-[12.5px] font-semibold text-tx-0">
-                      {row.slug}
-                    </p>
+                    <p className="font-display text-[12.5px] font-semibold text-tx-0">{row.slug}</p>
                     <p className="flex items-center gap-1 text-[10px] text-tx-2">
                       <FileText className="h-2.5 w-2.5" aria-hidden="true" />
                       {row.source}
