@@ -8,6 +8,10 @@ export interface UseDebouncedLocalStorageOptions {
   /** If true, "saved" pulse auto-fades back to "idle" after `flashMs`. */
   flashSaved?: boolean;
   flashMs?: number;
+  /** Fired when a write fails (after a debounced attempt or manual retry). */
+  onPersistError?: (info: { reason: "quota" | "other"; message: string }) => void;
+  /** Fired after a successful write — useful for stamping a "saved-at" map. */
+  onPersistSuccess?: () => void;
 }
 
 export interface UseDebouncedLocalStorageReturn {
