@@ -136,6 +136,11 @@ export function ImportReviewDialog({
                     ))}
                   </div>
                 </div>
+                {row.autoChosen && (
+                  <p className="mb-2 text-[10px] italic text-tx-2">
+                    Default chosen for you ({row.action}). Change above if needed.
+                  </p>
+                )}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-md border border-border-soft bg-bg-3 p-2">
                     <p className="mb-1 text-[9.5px] font-bold uppercase tracking-wider text-tx-2">
