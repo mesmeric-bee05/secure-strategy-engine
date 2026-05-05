@@ -60,7 +60,9 @@ export function ImportReviewDialog({
 
   function setAction(slug: string, source: string, action: ConflictAction) {
     setStaged((prev) =>
-      prev.map((r) => (r.slug === slug && r.source === source ? { ...r, action } : r)),
+      prev.map((r) =>
+        r.slug === slug && r.source === source ? { ...r, action, autoChosen: false } : r,
+      ),
     );
   }
 
