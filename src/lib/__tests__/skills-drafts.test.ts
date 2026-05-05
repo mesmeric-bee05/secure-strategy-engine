@@ -201,3 +201,64 @@ describe("friendlyImportError", () => {
     expect(friendlyImportError(undefined)).toMatch(/Could not import/i);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* pickDefaultAction                                                           */
+/* -------------------------------------------------------------------------- */
+import { pickDefaultAction } from "@/lib/skills-drafts";
+
+describe("pickDefaultAction", () => {
+  it("overwrites when current is empty", () => {
+    expect(pickDefaultAction({ incomingText: "hi", currentText: "" })).toBe("overwrite");
+  });
+  it("keeps when content is identical", () => {
+    expect(pickDefaultAction({ incomingText: "same", currentText: "same" })).toBe("keep");
+  });
+  it("overwrites when incoming exportedAt is strictly newer", () => {
+    expect(
+      pickDefaultAction({
+        incomingText: "new",
+        currentText: "old",
+        incomingExportedAt: "2026-05-05T10:00:00Z",
+        currentSavedAt: "2026-05-04T10:00:00Z",
+      }),
+    ).toBe("overwrite");
+  });
+  it("keeps when incoming is older", () => {
+    expect(
+      pickDefaultAction({
+        incomingText: "x",
+        currentText: "y",
+        incomingExportedAt: "2026-01-01T00:00:00Z",
+        currentSavedAt: "2026-05-01T00:00:00Z",
+      }),
+    ).toBe("keep");
+  });
+  it("falls back to keep when timestamps are missing", () => {
+    expect(pickDefaultAction({ incomingText: "a", currentText: "b" })).toBe("keep");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* assertSafeText matrix                                                       */
+/* -------------------------------------------------------------------------- */
+import { assertSafeText, SafeTextError } from "@/lib/skills-drafts";
+
+describe("assertSafeText", () => {
+  it("accepts plain unicode text", () => {
+    expect(() => assertSafeText("Hello 你好 — café")).not.toThrow();
+  });
+  it.each([
+    ["control char", "before\u0001after"],
+    ["script tag", "<script>x</script>"],
+    ["svg onload", "<svg onload=alert(1)>"],
+    ["javascript URL", "click javascript:alert(1)"],
+    ["event handler", '<img onerror="x">'],
+    ["data:html", "data:text/html,<x>"],
+  ])("rejects %s", (_, payload) => {
+    expect(() => assertSafeText(payload)).toThrow(SafeTextError);
+  });
+  it("rejects non-string input", () => {
+    expect(() => assertSafeText(123 as unknown)).toThrow(SafeTextError);
+  });
+});
