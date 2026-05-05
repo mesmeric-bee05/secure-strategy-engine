@@ -37,11 +37,16 @@ import {
   LANG_MAP_KEY,
   LEGACY_DRAFT_KEY,
   LEGACY_LANG_KEY,
+  SAVED_AT_MAP_KEY,
   buildExport,
+  buildLocalDataDump,
   exportFilename,
   friendlyImportError,
   hasUnsavedChanges as hasUnsavedChangesPure,
+  localDataFilename,
+  MAX_IMPORT_FILE_BYTES,
   parseImport,
+  pickDefaultAction,
   readJSONMap,
   unsavedCount,
 } from "@/lib/skills-drafts";
@@ -49,6 +54,8 @@ import { publicVerifyUrl, whatsAppShareUrl } from "@/lib/credentials";
 import { StorageCapabilityNotice } from "@/components/StorageCapabilityNotice";
 import { SkillsAuditLog } from "@/components/SkillsAuditLog";
 import { appendAuditEvent } from "@/lib/skills-audit";
+import { ImportReviewDialog, type StagedRow, type FileError } from "@/components/ImportReviewDialog";
+import { HardDriveDownload } from "lucide-react";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 
@@ -184,6 +191,29 @@ function SkillsPage() {
   // all personas.
   const persist = useDebouncedLocalStorage(DRAFT_MAP_KEY, JSON.stringify(draftMap), {
     delayMs: 500,
+    onPersistError: (info) => {
+      appendAuditEvent({
+        kind: info.reason === "quota" ? "quota_blocked" : "privacy_blocked",
+        summary:
+          info.reason === "quota"
+            ? "Draft save blocked — storage quota exceeded"
+            : `Draft save failed — ${info.message}`,
+        detail: { reason: info.reason },
+      });
+    },
+    onPersistSuccess: () => {
+      // Stamp a per-persona "saved-at" so multi-file imports can pick the
+      // newer side automatically.
+      try {
+        const raw = window.localStorage.getItem(SAVED_AT_MAP_KEY);
+        const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+        const iso = new Date().toISOString();
+        for (const slug of Object.keys(draftMap)) map[slug] = iso;
+        window.localStorage.setItem(SAVED_AT_MAP_KEY, JSON.stringify(map));
+      } catch {
+        /* ignore — best-effort timestamp */
+      }
+    },
   });
 
   // Once persistence settles, the current map IS the saved snapshot.
@@ -337,55 +367,183 @@ function SkillsPage() {
     }
   }, [draftMap, langMap]);
 
-  const handleImportFile = useCallback(
-    async (file: File) => {
-      try {
-        const raw = await file.text();
-        const json: unknown = JSON.parse(raw);
-        const parsed = parseImport(json);
-        const incomingSlugs = Object.keys(parsed.drafts);
-        const overlap = incomingSlugs.filter((s) => (draftMap[s] ?? "").trim().length > 0);
-        const ok =
-          typeof window === "undefined"
-            ? true
-            : window.confirm(
-                `Import ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}? ${
-                  overlap.length > 0
-                    ? `${overlap.length} will overwrite existing drafts (${overlap.join(", ")}).`
-                    : "No existing drafts will be overwritten."
-                }`,
-              );
-        if (!ok) return;
-        setDraftMap((prev) => ({ ...prev, ...parsed.drafts }));
-        setLangMap((prev) => ({ ...prev, ...parsed.languages }));
-        appendAuditEvent({
-          kind: "import",
-          summary: `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}${
-            overlap.length ? ` (overwrote ${overlap.length})` : ""
-          }`,
-          detail: {
-            filename: file.name,
-            slugCount: incomingSlugs.length,
-            bytes: file.size,
-          },
-        });
-        toast.success(
-          `Imported ${incomingSlugs.length} draft${incomingSlugs.length === 1 ? "" : "s"}` +
-            (parsed.droppedLanguages.length
-              ? ` (skipped ${parsed.droppedLanguages.length} unknown language${parsed.droppedLanguages.length === 1 ? "" : "s"})`
-              : ""),
-        );
-      } catch (e) {
-        appendAuditEvent({
-          kind: "import_rejected",
-          summary: friendlyImportError(e),
-          detail: { filename: file.name, bytes: file.size },
-        });
-        toast.error(friendlyImportError(e));
+  // ---------------------------------------------------------------------------
+  // Multi-file import → ImportReviewDialog
+  // ---------------------------------------------------------------------------
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
+  const [stagedErrors, setStagedErrors] = useState<FileError[]>([]);
+
+  const stageFiles = useCallback(
+    async (files: File[]) => {
+      const rows: StagedRow[] = [];
+      const errors: FileError[] = [];
+
+      let savedAtMap: Record<string, string> = {};
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem(SAVED_AT_MAP_KEY);
+          if (raw) savedAtMap = JSON.parse(raw) as Record<string, string>;
+        } catch {
+          /* ignore */
+        }
       }
+
+      for (const file of files) {
+        if (file.size > MAX_IMPORT_FILE_BYTES) {
+          const msg = `File too large (${(file.size / 1024).toFixed(0)} KB > 1 MB)`;
+          errors.push({ filename: file.name, message: msg });
+          appendAuditEvent({
+            kind: "import_rejected",
+            summary: msg,
+            detail: { filename: file.name, bytes: file.size },
+          });
+          continue;
+        }
+        if (file.type && !/^(application\/json|text\/)/.test(file.type)) {
+          const msg = `Unsupported file type: ${file.type}`;
+          errors.push({ filename: file.name, message: msg });
+          appendAuditEvent({
+            kind: "import_rejected",
+            summary: msg,
+            detail: { filename: file.name, bytes: file.size },
+          });
+          continue;
+        }
+
+        try {
+          const raw = await file.text();
+          if (raw.indexOf("\u0000") !== -1) {
+            throw new Error("File contains binary (NUL) bytes");
+          }
+          const json: unknown = JSON.parse(raw);
+          const parsed = parseImport(json);
+          const incomingExportedAt =
+            (json as { exportedAt?: string } | null)?.exportedAt ?? undefined;
+
+          for (const [slug, incomingText] of Object.entries(parsed.drafts)) {
+            const currentText = draftMap[slug] ?? "";
+            const action = pickDefaultAction({
+              incomingText,
+              currentText,
+              incomingExportedAt,
+              currentSavedAt: savedAtMap[slug],
+            });
+            rows.push({
+              slug,
+              incomingText,
+              currentText,
+              language: parsed.languages[slug],
+              source: file.name,
+              action,
+              autoChosen: true,
+            });
+          }
+        } catch (e) {
+          const msg = friendlyImportError(e);
+          errors.push({ filename: file.name, message: msg });
+          appendAuditEvent({
+            kind: "import_rejected",
+            summary: msg,
+            detail: { filename: file.name, bytes: file.size },
+          });
+        }
+      }
+
+      setStagedRows(rows);
+      setStagedErrors(errors);
+      if (rows.length === 0 && errors.length > 0) {
+        toast.error(`No drafts to import — ${errors.length} file(s) rejected`);
+        return;
+      }
+      setReviewOpen(true);
     },
     [draftMap],
   );
+
+  const applyStagedRows = useCallback((rows: StagedRow[]) => {
+    const draftPatch: Record<string, string> = {};
+    const langPatch: Record<string, string> = {};
+    let imported = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      if (row.action === "keep") continue;
+      let next = row.incomingText;
+      if (row.action === "append" && row.currentText) {
+        next = `${row.currentText}\n\n${row.incomingText}`;
+      }
+      if (next.length > 20_000) {
+        skipped += 1;
+        appendAuditEvent({
+          kind: "import_rejected",
+          summary: `Skipped ${row.slug}: combined text exceeds 20,000 chars`,
+          detail: { filename: row.source, slugCount: 1, bytes: next.length },
+        });
+        continue;
+      }
+      draftPatch[row.slug] = next;
+      if (row.language) langPatch[row.slug] = row.language;
+      imported += 1;
+    }
+    if (imported > 0) {
+      setDraftMap((prev) => ({ ...prev, ...draftPatch }));
+      setLangMap((prev) => ({ ...prev, ...langPatch }) as typeof prev);
+      appendAuditEvent({
+        kind: "import",
+        summary: `Imported ${imported} draft${imported === 1 ? "" : "s"}${
+          skipped ? ` (skipped ${skipped})` : ""
+        }`,
+        detail: { slugCount: imported },
+      });
+      toast.success(`Imported ${imported} draft${imported === 1 ? "" : "s"}`);
+    } else {
+      toast.message("No changes applied");
+    }
+    setReviewOpen(false);
+    setStagedRows([]);
+    setStagedErrors([]);
+  }, []);
+
+  const handleDownloadLocalData = useCallback(() => {
+    try {
+      const dump = buildLocalDataDump({
+        drafts: draftMap,
+        languages: langMap,
+        savedSnapshot: savedSnapshotRef.current,
+        appVersion: import.meta.env.MODE,
+      });
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = localDataFilename();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      appendAuditEvent({
+        kind: "data_download",
+        summary: `Downloaded local data snapshot (${dump.personas.length} persona${
+          dump.personas.length === 1 ? "" : "s"
+        })`,
+        detail: {
+          filename: a.download,
+          slugCount: dump.personas.length,
+          bytes: blob.size,
+        },
+      });
+      toast.success("Local data downloaded");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Download failed";
+      if (e instanceof Error && /security/i.test(e.name)) {
+        appendAuditEvent({
+          kind: "privacy_blocked",
+          summary: `Local data download blocked — ${msg}`,
+        });
+      }
+      toast.error(msg);
+    }
+  }, [draftMap, langMap]);
 
   // ---------------------------------------------------------------------------
   // Restored-from-storage banner
@@ -506,6 +664,15 @@ function SkillsPage() {
                   <Upload className="h-3 w-3" aria-hidden="true" />
                   Import
                 </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadLocalData}
+                  aria-label="Download a human-readable snapshot of all data this app stores on your device"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <HardDriveDownload className="h-3 w-3" aria-hidden="true" />
+                  My data
+                </button>
                 <details className="group relative">
                   <summary
                     aria-label="Show keyboard shortcuts"
@@ -570,11 +737,11 @@ function SkillsPage() {
                   ref={importInputRef}
                   type="file"
                   accept="application/json,.json"
+                  multiple
                   className="sr-only"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleImportFile(f);
-                    // Reset so picking the same file twice still fires onChange.
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) void stageFiles(files);
                     e.target.value = "";
                   }}
                 />
@@ -812,6 +979,18 @@ function SkillsPage() {
         <SkillsAuditLog />
 
         <CitationsPanel citations={citationsQ.data ?? []} />
+
+        <ImportReviewDialog
+          open={reviewOpen}
+          rows={stagedRows}
+          errors={stagedErrors}
+          onCancel={() => {
+            setReviewOpen(false);
+            setStagedRows([]);
+            setStagedErrors([]);
+          }}
+          onApply={applyStagedRows}
+        />
       </div>
     </AppShell>
   );

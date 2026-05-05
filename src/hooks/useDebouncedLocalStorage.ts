@@ -8,6 +8,10 @@ export interface UseDebouncedLocalStorageOptions {
   /** If true, "saved" pulse auto-fades back to "idle" after `flashMs`. */
   flashSaved?: boolean;
   flashMs?: number;
+  /** Fired when a write fails (after a debounced attempt or manual retry). */
+  onPersistError?: (info: { reason: "quota" | "other"; message: string }) => void;
+  /** Fired after a successful write — useful for stamping a "saved-at" map. */
+  onPersistSuccess?: () => void;
 }
 
 export interface UseDebouncedLocalStorageReturn {
@@ -31,7 +35,13 @@ export interface UseDebouncedLocalStorageReturn {
 export function useDebouncedLocalStorage(
   key: string,
   value: string,
-  { delayMs = 500, flashSaved = true, flashMs = 1500 }: UseDebouncedLocalStorageOptions = {},
+  {
+    delayMs = 500,
+    flashSaved = true,
+    flashMs = 1500,
+    onPersistError,
+    onPersistSuccess,
+  }: UseDebouncedLocalStorageOptions = {},
 ): UseDebouncedLocalStorageReturn {
   const [status, setStatus] = useState<PersistStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +49,10 @@ export function useDebouncedLocalStorage(
   const lastFailedLenRef = useRef<number | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const onErrRef = useRef(onPersistError);
+  onErrRef.current = onPersistError;
+  const onOkRef = useRef(onPersistSuccess);
+  onOkRef.current = onPersistSuccess;
 
   const writeNow = useCallback(
     (next: string, retrying: boolean): boolean => {
@@ -48,6 +62,7 @@ export function useDebouncedLocalStorage(
         lastFailedLenRef.current = null;
         setError(null);
         setStatus("saved");
+        onOkRef.current?.();
         if (flashSaved) {
           window.setTimeout(() => {
             setStatus((s) => (s === "saved" ? "idle" : s));
@@ -68,6 +83,7 @@ export function useDebouncedLocalStorage(
         if (isQuota) lastFailedLenRef.current = next.length;
         setError(retrying ? `Retry failed: ${msg}` : msg);
         setStatus("error");
+        onErrRef.current?.({ reason: isQuota ? "quota" : "other", message: msg });
         return false;
       }
     },
