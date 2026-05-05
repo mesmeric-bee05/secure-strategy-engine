@@ -191,6 +191,29 @@ function SkillsPage() {
   // all personas.
   const persist = useDebouncedLocalStorage(DRAFT_MAP_KEY, JSON.stringify(draftMap), {
     delayMs: 500,
+    onPersistError: (info) => {
+      appendAuditEvent({
+        kind: info.reason === "quota" ? "quota_blocked" : "privacy_blocked",
+        summary:
+          info.reason === "quota"
+            ? "Draft save blocked — storage quota exceeded"
+            : `Draft save failed — ${info.message}`,
+        detail: { reason: info.reason },
+      });
+    },
+    onPersistSuccess: () => {
+      // Stamp a per-persona "saved-at" so multi-file imports can pick the
+      // newer side automatically.
+      try {
+        const raw = window.localStorage.getItem(SAVED_AT_MAP_KEY);
+        const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+        const iso = new Date().toISOString();
+        for (const slug of Object.keys(draftMap)) map[slug] = iso;
+        window.localStorage.setItem(SAVED_AT_MAP_KEY, JSON.stringify(map));
+      } catch {
+        /* ignore — best-effort timestamp */
+      }
+    },
   });
 
   // Once persistence settles, the current map IS the saved snapshot.
