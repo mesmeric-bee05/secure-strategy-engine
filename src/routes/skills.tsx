@@ -737,11 +737,11 @@ function SkillsPage() {
                   ref={importInputRef}
                   type="file"
                   accept="application/json,.json"
+                  multiple
                   className="sr-only"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleImportFile(f);
-                    // Reset so picking the same file twice still fires onChange.
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) void stageFiles(files);
                     e.target.value = "";
                   }}
                 />
