@@ -37,11 +37,16 @@ import {
   LANG_MAP_KEY,
   LEGACY_DRAFT_KEY,
   LEGACY_LANG_KEY,
+  SAVED_AT_MAP_KEY,
   buildExport,
+  buildLocalDataDump,
   exportFilename,
   friendlyImportError,
   hasUnsavedChanges as hasUnsavedChangesPure,
+  localDataFilename,
+  MAX_IMPORT_FILE_BYTES,
   parseImport,
+  pickDefaultAction,
   readJSONMap,
   unsavedCount,
 } from "@/lib/skills-drafts";
@@ -49,6 +54,8 @@ import { publicVerifyUrl, whatsAppShareUrl } from "@/lib/credentials";
 import { StorageCapabilityNotice } from "@/components/StorageCapabilityNotice";
 import { SkillsAuditLog } from "@/components/SkillsAuditLog";
 import { appendAuditEvent } from "@/lib/skills-audit";
+import { ImportReviewDialog, type StagedRow, type FileError } from "@/components/ImportReviewDialog";
+import { HardDriveDownload } from "lucide-react";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
 
