@@ -1,113 +1,92 @@
 ## Goal
 
-Strengthen the `/skills` page with a security/privacy checklist, power-user keyboard shortcuts, hardened import validation, a "drafts restored" banner, and a mobile-friendly persona selector — while keeping accessibility, persistence, and the elite dark UI from the v3 spec consistent.
+Finish the Skills hardening pass: wire the unfinished UI pieces into `src/routes/skills.tsx`, broaden audit-log coverage, give multi-file imports a sensible default action with a clearly-exposed per-persona toggle, and add the missing unit + integration tests.
 
-The shared `bash.docx` (TalentGraph v3 elite spec) confirms the design tokens and layout intent we're building toward: dark `--bg #07080C`, gold `#F5A623` accents, Syne/DM Sans typography, mono details (`JetBrains Mono`), pulse + radio-style chips. All visuals stay aligned with the existing token system already wired in `src/styles.css` and the `AppShell`.
+## 1. Wire pending pieces into `src/routes/skills.tsx`
 
----
+Already mounted: `StorageCapabilityNotice`, `SkillsAuditLog`, `SkillsPrivacyCard`, single-file import.
 
-## 1) Hardened import (parseImport in `src/lib/skills-drafts.ts`)
+To finish:
 
-**Problem:** `DraftExportSchema` currently uses `z.record(z.string(), z.string())` which Zod accepts for plain objects — but a malicious or malformed file with `null`, arrays, nested objects under `drafts`/`languages`, or non-string slug keys can still slip through unexpected shapes (e.g. `drafts: ["a","b"]` becomes object-like in some flows). Tighten:
+- **Multi-file import via `ImportReviewDialog`**
+  - Change the hidden `<input type="file">` to `multiple`.
+  - On change, parse each file independently with `parseImport()` inside a try/catch and stage results into `StagedRow[]` (one row per persona slug per file).
+  - Read each file as text first; reject any file whose `file.type` is set and is not `application/json` / `text/*`, or whose first 1KB contains NUL bytes (defence against "rename .png to .json"). Failed files become `FileError` entries.
+  - Open `<ImportReviewDialog open rows errors onApply onCancel/>`.
+  - On apply: merge rows whose `action !== "keep"` into `draftMap` / `langMap`, respecting `overwrite` (replace) vs `append` (concatenate with `\n\n` separator, capped at 20,000 chars; if cap hit, log `import_rejected` and skip that row).
 
-- Replace `DraftExportSchema` with explicit guards:
-  - `drafts`: `z.record(z.string().min(1).max(64), z.string().max(20_000))` plus a custom `.refine` ensuring the parsed value is a **plain object** (`Object.getPrototypeOf(v) === Object.prototype`) — rejects arrays/`Map`/class instances even when they coerce.
-  - `languages`: same plain-object refinement, value is `z.string().max(16)`.
-  - Top-level: `.strict()` so unknown sibling keys (e.g. `__proto__`, `constructor`) are rejected outright; explicitly strip prototype-pollution keys before validation.
-- `parseImport` returns a **typed error result** (`{ ok: false, reason: "version" | "shape" | "json" | "unknown", message }`) **OR** continues to throw `ZodError` — to keep diff small, keep throwing and add a `friendlyImportError(e)` helper that returns a single human-readable string for toast use.
-- Skip slug keys whose value is empty after trim (don't pollute storage with empty drafts).
+- **"Download my local data" button**
+  - Add a button next to Export labelled "Download my data". Calls `buildLocalDataDump({ drafts, languages, savedSnapshot })` then triggers a download via `localDataFilename()`. Emits a `data_download` audit event (`kind: "data_download"`, summary `Downloaded local data snapshot`, detail `{ filename, bytes, slugCount }`). Errors emit `privacy_blocked` if it was a Storage/SecurityError, otherwise show toast only.
 
-**Caller change in `src/routes/skills.tsx`:** swap the `catch` block in `handleImportFile` to use `friendlyImportError(e)` so toasts say things like:
+- **Storage banner already mounted** — keep existing wiring; verify that `aria-live="assertive"` mounts above the editor and that the `onProbe` callback already logs `quota_blocked` / `privacy_blocked` (it does — leave as is).
 
-- `"Invalid backup: drafts must be an object of slug → text"`
-- `"Invalid backup: file is not valid JSON"`
-- `"Backup version 2 is not supported (expected version 1)"`
+## 2. Smart per-persona conflict defaults
 
-## 2) Drafts-restored banner
+Add `pickDefaultAction(current, incomingText, currentText, incomingExportedAt?, currentSavedAtMap?)` to `src/lib/skills-drafts.ts`:
 
-Add a dismissible info banner at the top of `/skills` (above the input grid) that announces when drafts were rehydrated from `localStorage` on mount:
+- If `currentText.trim() === ""` → `overwrite` (no conflict).
+- If `incomingText.trim() === currentText.trim()` → `keep` (identical content, nothing to do).
+- If we can determine an "incoming is newer" timestamp (`exportedAt` from the file vs. last-saved-at recorded per slug) → `overwrite`.
+- Otherwise → `keep` (safe default; user must opt in).
 
-- New component `src/components/RestoredBanner.tsx`:
-  - Props: `count: number`, `onDismiss: () => void`.
-  - `role="status"`, `aria-live="polite"` so screen readers hear "N drafts restored from this browser" once on mount.
-  - Gold-accent pill style matching the v3 design (`border-gold-glow bg-gold-soft text-gold`), close button with `aria-label="Dismiss restored drafts notice"`.
-  - Auto-dismiss timer **disabled** — explicit user dismissal only, per the request.
-- In `SkillsPage`:
-  - Compute `restoredCount` once at mount from the initial `draftMap` (count of slugs with non-empty trimmed text). Use a `useRef`+`useState` so the count is captured **before** the user starts typing.
-  - Persist dismissal in `sessionStorage` under `talentgraph:skills:restored-banner-dismissed` so it doesn't reappear when navigating between pages in the same session, but does come back after a fresh tab.
+Use this in the staging step so each `StagedRow.action` arrives at the dialog pre-set. Keep the per-row Keep / Overwrite / Append radio group fully visible (existing UI in `ImportReviewDialog`) and add a small "Default chosen for you" caption below rows whose action was auto-picked.
 
-## 3) Keyboard shortcuts + visible legend
+To support "incoming is newer": persist a tiny `talentgraph:skills:saved-at-by-persona` map of `{ slug: ISO }` written each time `useDebouncedLocalStorage` flips to `saved`. Read in the import handler.
 
-Add a `useSkillsHotkeys` hook (inline in `skills.tsx` or split to `src/hooks/useSkillsHotkeys.ts`):
+## 3. Broader audit-log coverage
 
-- **Ctrl/Cmd+S** → triggers `handleExport()` (and `e.preventDefault()` to suppress browser save).
-- **Ctrl/Cmd+I** → opens the import file picker (`importInputRef.current?.click()`).
-- **Alt+ArrowRight / Alt+ArrowLeft** → switches to next/previous persona (wraps), reusing `switchPersona()`. This works regardless of focus, unlike the existing radiogroup arrow nav which only works when a persona chip is focused.
-- All handlers ignore events whose target is inside the textarea **only for Alt+arrows would interfere with caret-jump-by-word**; Ctrl/Cmd+S and Ctrl/Cmd+I always fire.
-- Mac-friendly: detect `e.metaKey || e.ctrlKey`.
-- Cleanup on unmount.
+Emit `appendAuditEvent(...)` from every relevant code path. Each call MUST set `kind`, derive `scope` automatically (the helper already does), and include an ISO `at` (the helper already sets it).
 
-**Visible UI:** small `<KeyboardShortcutsLegend />` rendered as a collapsible `<details>` next to Export/Import. Defaults closed; uses `<kbd>` elements styled with the existing token palette. Inside `<details>` the `<summary>` reads "Keyboard shortcuts" so screen-reader users discover them. Also add an `aria-keyshortcuts` attribute to the Export, Import, and persona group for AT discoverability.
+| Path | kind | When |
+|---|---|---|
+| Successful single/multi import | `import` | after merge applied |
+| Any rejected file (parse / schema / safe-text / size / non-text MIME) | `import_rejected` | per file |
+| Append-cap overflow | `import_rejected` | per skipped row |
+| Export button | `export` | already in place |
+| Download my data | `data_download` | new |
+| Storage probe failure | `quota_blocked` / `privacy_blocked` | already in place |
+| `useDebouncedLocalStorage` quota error after retry exhaustion | `quota_blocked` | NEW — surface a callback `onPersistError(reason)` from the hook and emit on the route |
+| `appendAuditEvent` itself falls back to memory | scope `"memory"` already tagged on the event | no new call needed |
 
-## 4) Security & privacy checklist section
+## 4. End-to-end safe-text integration test
 
-A new collapsible card rendered below the OUTPUT column (or above the citations panel) titled **"Where your data lives"**. Plain-language, gold-accented, and links to actions the user can take.
+New `src/lib/__tests__/skills-import-integration.test.ts` simulates the real pipeline:
 
-- New component `src/components/SkillsPrivacyCard.tsx`. Static content, no network calls, no PII.
-- Sections:
-  1. **Stored on this device only** — drafts in `localStorage` (`talentgraph:skills:draft-by-persona`), language prefs (`talentgraph:skills:lang-by-persona`), banner dismissal in `sessionStorage`. Last-error log is in `sessionStorage` and auto-expires after 24h (already implemented).
-  2. **Sent to the server only when you click "Map to ISCO-08 / ESCO"** — text + language hint; nothing is sent automatically while typing.
-  3. **What to do if saving fails** — quota tips: export your drafts first, then delete unused personas; clear the site's storage in browser DevTools; switch to incognito which has its own quota; if private mode blocks `localStorage`, your draft still works in-memory for the session but won't persist.
-  4. **Audit trail** — server-side errors are appended to the immutable `audit_log` (already wired via `logClientError`).
-- A "Copy storage report" button that copies a JSON payload to the clipboard listing the current keys and approximate byte sizes (helpful for support requests). Uses `navigator.clipboard.writeText` with a `sonner` toast confirmation and an `aria-live` announcement.
+1. Build a `File` from a JSON string containing `<script>alert(1)</script>` inside `drafts.sarah`. Read via `file.text()` → `JSON.parse` → `parseImport()` → expect throw → `friendlyImportError()` returns `Invalid backup: contains HTML/JS-like content`.
+2. Same with `\u0000` bytes (control chars).
+3. Same with a binary payload (`new File([new Uint8Array([0,1,2,...])])`) — parse must throw before reaching the schema (JSON.parse fails with SyntaxError → friendly message).
+4. Happy-path JSON merges into a fake `Storage` object and asserts the persisted JSON contains the imported text.
 
-## 5) Small-screen UX polish
+## 5. Unit tests
 
-- **Persona selector**: switch the `flex flex-wrap gap-2` container to a horizontally-scrollable strip on `< sm`:
-  - `flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 sm:flex-wrap sm:overflow-visible`
-  - Add `snap-start` to each chip and `flex-shrink-0` so chips never compress.
-  - Keep keyboard navigation working (it already uses refs/focus, no DOM-position assumptions).
-  - Add `aria-orientation="horizontal"` to the radiogroup on small screens (purely cosmetic for AT — it still works either way).
-- **Saved/Unsaved indicator visibility while typing**: the `SavedIndicator` currently lives in the top toolbar which can scroll out of view on phones. Add a **sticky footer pill** inside the textarea card that always shows the current persona's status next to a small character count (`text.length / 4000`). Sticky via `sticky bottom-0 -mb-3 -mx-3` inside the rounded container — uses the existing `bg-bg-4` so it fades into the editor.
-- The textarea's `border-t pt-2` action row already wraps; verify wrapping at 320px viewport via QA after implementation. No layout-blocking change needed.
+- `src/lib/__tests__/storage-capability.test.ts`
+  - `missing` when `pickStorage` returns null (mock `window` undefined via `vi.stubGlobal`).
+  - `denied` when `setItem` throws `SecurityError`.
+  - `quota` (small fails) and `nearQuota` (small ok, large fails) via `vi.spyOn(Storage.prototype, "setItem")`.
 
-## 6) Tests (Vitest)
+- `src/lib/__tests__/skills-audit.test.ts`
+  - `appendAuditEvent` writes to `localStorage`, sets `at` to a valid ISO, defaults `scope` to `"localStorage"`.
+  - When `setItem` throws, scope flips to `"memory"` and the event still appears in `readAuditLog()`.
+  - `clearAuditLog()` empties both persisted + in-memory buffers and dispatches the custom event.
+  - FIFO eviction at `MAX_ENTRIES`.
 
-- `src/lib/__tests__/skills-drafts.test.ts` — extend with cases for the hardened `parseImport`:
-  - Rejects `drafts: ["a"]` (array masquerading as record).
-  - Rejects `drafts: { sarah: 123 }` (non-string value).
-  - Rejects keys with prototype-pollution names (`__proto__`, `constructor`).
-  - Rejects unknown top-level keys (`.strict()`).
-  - `friendlyImportError` returns the expected human strings for each branch.
-- `src/components/__tests__/RestoredBanner.test.tsx` — renders the count, dismissal callback fires, `role="status"` present.
-- `src/hooks/__tests__/useSkillsHotkeys.test.ts` — fires on Ctrl+S, Cmd+I, Alt+ArrowRight; ignores Alt+arrow when target is inside a textarea; no-ops without modifier.
+- Extend `src/lib/__tests__/skills-drafts.test.ts` with cases for `pickDefaultAction` and updated `assertSafeText` matrix (control chars, `<svg onload=…>`, `javascript:` URLs).
 
-## 7) Files
+## 6. Run + verify
 
-**New**
+Run `bunx vitest run` once after wiring + tests to confirm all suites pass. Fix any regressions (most likely: hook signature change for the new `onPersistError` callback).
 
-- `src/components/RestoredBanner.tsx`
-- `src/components/SkillsPrivacyCard.tsx`
-- `src/hooks/useSkillsHotkeys.ts`
-- `src/components/__tests__/RestoredBanner.test.tsx`
-- `src/hooks/__tests__/useSkillsHotkeys.test.ts`
+## Files
 
-**Edited**
+**Edit**
+- `src/routes/skills.tsx` — multi-file import, Download my data button, persist `saved-at` map, hook into `onPersistError`.
+- `src/lib/skills-drafts.ts` — add `pickDefaultAction`.
+- `src/hooks/useDebouncedLocalStorage.ts` — add optional `onPersistError(reason)` callback.
+- `src/components/ImportReviewDialog.tsx` — add "Default chosen for you" caption when row was auto-picked.
 
-- `src/lib/skills-drafts.ts` — harden `DraftExportSchema`, add `friendlyImportError`, prototype-pollution stripping.
-- `src/routes/skills.tsx` — wire banner, hotkeys, privacy card, sticky `SavedIndicator`, scrollable persona strip; replace toast text in import catch with `friendlyImportError`.
-- `src/lib/__tests__/skills-drafts.test.ts` — extra cases.
+**Create**
+- `src/lib/__tests__/storage-capability.test.ts`
+- `src/lib/__tests__/skills-audit.test.ts`
+- `src/lib/__tests__/skills-import-integration.test.ts`
 
-## Out of scope
-
-- No backend changes (no new server functions, no migrations).
-- No changes to `/opportunities`, the audit pipeline, or `useDebouncedLocalStorage`.
-- No new external dependencies — all UI uses existing `lucide-react`, `sonner`, Tailwind tokens, and shadcn primitives.
-
-## QA after implementation
-
-1. `bunx tsc --noEmit` — clean.
-2. `bunx vitest run` — all suites pass (target ≥ 50 tests with the new ones).
-3. Manual hotkeys check: Ctrl/Cmd+S exports, Ctrl/Cmd+I opens picker, Alt+→/← cycles personas (with confirm prompt when unsaved).
-4. Resize preview to 375×812 — persona strip scrolls horizontally, sticky Saved pill stays visible.
-5. Import a hand-crafted bad JSON file (`{"drafts":["x"]}`) — toast surfaces a friendly message, no crash.
+No DB / server / dependency changes; all work is client-side under `/skills`.
