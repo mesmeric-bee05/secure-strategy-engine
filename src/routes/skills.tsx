@@ -979,6 +979,18 @@ function SkillsPage() {
         <SkillsAuditLog />
 
         <CitationsPanel citations={citationsQ.data ?? []} />
+
+        <ImportReviewDialog
+          open={reviewOpen}
+          rows={stagedRows}
+          errors={stagedErrors}
+          onCancel={() => {
+            setReviewOpen(false);
+            setStagedRows([]);
+            setStagedErrors([]);
+          }}
+          onApply={applyStagedRows}
+        />
       </div>
     </AppShell>
   );
