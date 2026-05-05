@@ -663,6 +663,7 @@ function SkillsPage() {
                 >
                   <Upload className="h-3 w-3" aria-hidden="true" />
                   Import
+                </button>
                 <button
                   type="button"
                   onClick={handleDownloadLocalData}
