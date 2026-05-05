@@ -663,6 +663,14 @@ function SkillsPage() {
                 >
                   <Upload className="h-3 w-3" aria-hidden="true" />
                   Import
+                <button
+                  type="button"
+                  onClick={handleDownloadLocalData}
+                  aria-label="Download a human-readable snapshot of all data this app stores on your device"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-1 text-[10.5px] text-tx-1 transition hover:border-gold-glow hover:text-gold"
+                >
+                  <HardDriveDownload className="h-3 w-3" aria-hidden="true" />
+                  My data
                 </button>
                 <details className="group relative">
                   <summary
