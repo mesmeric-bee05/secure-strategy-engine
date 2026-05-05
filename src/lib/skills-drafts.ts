@@ -270,6 +270,49 @@ export function mergeImport<T extends Record<string, string>>(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Per-persona conflict-resolution defaults for multi-file imports             */
+/* -------------------------------------------------------------------------- */
+
+export type ConflictAction = "keep" | "overwrite" | "append";
+
+export interface PickDefaultActionInput {
+  incomingText: string;
+  currentText: string;
+  /** ISO export-time of the incoming file (root `exportedAt`). */
+  incomingExportedAt?: string;
+  /** ISO last-saved-time we have for the current persona, if any. */
+  currentSavedAt?: string;
+}
+
+/**
+ * Sensible default conflict action for a single persona row in a multi-file
+ * import:
+ *   - empty current → overwrite (no risk).
+ *   - identical content → keep.
+ *   - incoming clearly newer than current saved snapshot → overwrite.
+ *   - everything else → keep (safe; user must opt in to clobber).
+ */
+export function pickDefaultAction({
+  incomingText,
+  currentText,
+  incomingExportedAt,
+  currentSavedAt,
+}: PickDefaultActionInput): ConflictAction {
+  if (currentText.trim().length === 0) return "overwrite";
+  if (incomingText.trim() === currentText.trim()) return "keep";
+  if (incomingExportedAt && currentSavedAt) {
+    const incoming = Date.parse(incomingExportedAt);
+    const current = Date.parse(currentSavedAt);
+    if (Number.isFinite(incoming) && Number.isFinite(current) && incoming > current) {
+      return "overwrite";
+    }
+  }
+  return "keep";
+}
+
+export const SAVED_AT_MAP_KEY = "talentgraph:skills:saved-at-by-persona";
+
+/* -------------------------------------------------------------------------- */
 /* Friendly error messages for import failures                                 */
 /* -------------------------------------------------------------------------- */
 
