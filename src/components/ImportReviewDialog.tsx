@@ -20,6 +20,8 @@ export interface StagedRow {
   /** Filename the row originated from (for display only). */
   source: string;
   action: ConflictAction;
+  /** True when `action` was auto-picked by pickDefaultAction. */
+  autoChosen?: boolean;
 }
 
 export interface FileError {
