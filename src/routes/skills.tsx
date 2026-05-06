@@ -42,7 +42,6 @@ import {
   buildLocalDataDump,
   exportFilename,
   classifyImportError,
-  friendlyImportError,
   migrateLocalDataDump,
   hasUnsavedChanges as hasUnsavedChangesPure,
   localDataFilename,
