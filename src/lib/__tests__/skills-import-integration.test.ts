@@ -182,7 +182,7 @@ describe("skills import — extended HTML/JS rejection matrix", () => {
     // Object.prototype must not be polluted.
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     const stored = JSON.parse(window.localStorage.getItem(DRAFT_MAP_KEY) ?? "{}");
-    expect(stored.__proto__).toBeUndefined();
+    expect(Object.hasOwn(stored, "__proto__")).toBe(false);
     expect(stored.sarah).toBe("ok");
   });
 
