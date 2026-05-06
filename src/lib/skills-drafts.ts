@@ -559,3 +559,48 @@ export function migrateLocalDataDump(input: unknown): MigrationOutcome | null {
     notes: [`Upgraded snapshot from schemaVersion ${v} to ${LOCAL_DATA_DUMP_VERSION}.`],
   };
 }
+
+export interface ClassifiedImportError {
+  message: string;
+  rule: string;
+  hint: string;
+}
+
+/** Map any thrown import error into UI-friendly rule + hint + message. */
+export function classifyImportError(e: unknown): ClassifiedImportError {
+  const message = friendlyImportError(e);
+  if (e instanceof SyntaxError) {
+    return { message, rule: "JSON syntax", hint: "Re-export the file or open it in a JSON validator." };
+  }
+  if (e instanceof SafeTextError) {
+    return {
+      message,
+      rule: "Safe text",
+      hint: "Remove HTML/JS, control characters, or shorten very long entries.",
+    };
+  }
+  if (e instanceof z.ZodError) {
+    const issue = e.issues[0];
+    if (issue?.path[0] === "version") {
+      return {
+        message,
+        rule: "Schema version",
+        hint: `Use a backup with version ${DRAFT_EXPORT_VERSION}.`,
+      };
+    }
+    if (issue?.path[0] === "drafts") {
+      return { message, rule: "Drafts", hint: "Each draft must be a plain text string keyed by persona slug." };
+    }
+    if (issue?.path[0] === "languages") {
+      return { message, rule: "Languages", hint: "Languages must be a slug → BCP-47 code map." };
+    }
+    return { message, rule: "Schema", hint: "Compare your file with a fresh export from this app." };
+  }
+  if (e instanceof Error && /binary|NUL/i.test(e.message)) {
+    return { message, rule: "File type", hint: "Pick a .json text file (not a binary upload)." };
+  }
+  if (e instanceof Error && /too large/i.test(e.message)) {
+    return { message, rule: "File size", hint: "Split the backup or remove unused personas." };
+  }
+  return { message, rule: "Import", hint: "Pick another file and try again." };
+}
