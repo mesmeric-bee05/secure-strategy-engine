@@ -392,20 +392,27 @@ function SkillsPage() {
         }
       }
 
+      const notices: string[] = [];
+
       for (const file of files) {
         if (file.size > MAX_IMPORT_FILE_BYTES) {
-          const msg = `File too large (${(file.size / 1024).toFixed(0)} KB > 1 MB)`;
-          errors.push({ filename: file.name, message: msg });
+          const c = classifyImportError(new Error(`too large (${(file.size / 1024).toFixed(0)} KB)`));
+          errors.push({ filename: file.name, message: c.message, rule: c.rule, hint: c.hint });
           appendAuditEvent({
             kind: "import_rejected",
-            summary: msg,
+            summary: c.message,
             detail: { filename: file.name, bytes: file.size },
           });
           continue;
         }
         if (file.type && !/^(application\/json|text\/)/.test(file.type)) {
           const msg = `Unsupported file type: ${file.type}`;
-          errors.push({ filename: file.name, message: msg });
+          errors.push({
+            filename: file.name,
+            message: msg,
+            rule: "File type",
+            hint: "Pick a .json text file (not a binary upload).",
+          });
           appendAuditEvent({
             kind: "import_rejected",
             summary: msg,
