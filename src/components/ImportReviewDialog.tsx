@@ -55,6 +55,8 @@ export function ImportReviewDialog({
   errors,
   onCancel,
   onApply,
+  onRetry,
+  migrationNotice,
 }: ImportReviewDialogProps) {
   const [staged, setStaged] = useState<StagedRow[]>(rows);
 
