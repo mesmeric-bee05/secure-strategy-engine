@@ -301,3 +301,59 @@ describe("local-data dump: schemaVersion + parser", () => {
     if (!missing.ok) expect(missing.reason).toBe("invalid_shape");
   });
 });
+
+import { migrateLocalDataDump } from "@/lib/skills-drafts";
+
+describe("migrateLocalDataDump", () => {
+  it("returns migrated=false for a current-version dump", () => {
+    const dump = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    const m = migrateLocalDataDump(JSON.parse(JSON.stringify(dump)));
+    expect(m).not.toBeNull();
+    expect(m!.migrated).toBe(false);
+    expect(m!.fromVersion).toBe(1);
+  });
+
+  it("upgrades a v0 (pre-versioned) dump to v1", () => {
+    const legacy = {
+      // no schemaVersion
+      generatedAt: "2025-01-01T00:00:00Z",
+      personas: [{ slug: "sarah", text: "hi" }],
+    };
+    const m = migrateLocalDataDump(legacy);
+    expect(m).not.toBeNull();
+    expect(m!.migrated).toBe(true);
+    expect(m!.fromVersion).toBe(0);
+    expect(m!.dump.schemaVersion).toBe(1);
+    expect(m!.notes.length).toBeGreaterThan(0);
+  });
+
+  it("returns null for a future schemaVersion", () => {
+    const future = { schemaVersion: 99, generatedAt: "x", personas: [] };
+    expect(migrateLocalDataDump(future)).toBeNull();
+  });
+
+  it("returns null for unrecognisable shape", () => {
+    expect(migrateLocalDataDump(null)).toBeNull();
+    expect(migrateLocalDataDump({ schemaVersion: 1 })).toBeNull();
+  });
+});
+
+describe("classifyImportError", () => {
+  it("classifies SyntaxError as JSON syntax", async () => {
+    const { classifyImportError } = await import("@/lib/skills-drafts");
+    const c = classifyImportError(new SyntaxError("bad"));
+    expect(c.rule).toBe("JSON syntax");
+    expect(c.hint).toMatch(/JSON/i);
+  });
+
+  it("classifies SafeTextError as Safe text", async () => {
+    const { classifyImportError, SafeTextError } = await import("@/lib/skills-drafts");
+    const c = classifyImportError(new SafeTextError("contains HTML/JS-like content"));
+    expect(c.rule).toBe("Safe text");
+  });
+
+  it("falls back to Import for unknown errors", async () => {
+    const { classifyImportError } = await import("@/lib/skills-drafts");
+    expect(classifyImportError("???").rule).toBe("Import");
+  });
+});

@@ -41,7 +41,8 @@ import {
   buildExport,
   buildLocalDataDump,
   exportFilename,
-  friendlyImportError,
+  classifyImportError,
+  migrateLocalDataDump,
   hasUnsavedChanges as hasUnsavedChangesPure,
   localDataFilename,
   MAX_IMPORT_FILE_BYTES,
@@ -373,6 +374,7 @@ function SkillsPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
   const [stagedErrors, setStagedErrors] = useState<FileError[]>([]);
+  const [migrationNotice, setMigrationNotice] = useState<string | undefined>(undefined);
 
   const stageFiles = useCallback(
     async (files: File[]) => {
@@ -389,20 +391,27 @@ function SkillsPage() {
         }
       }
 
+      const notices: string[] = [];
+
       for (const file of files) {
         if (file.size > MAX_IMPORT_FILE_BYTES) {
-          const msg = `File too large (${(file.size / 1024).toFixed(0)} KB > 1 MB)`;
-          errors.push({ filename: file.name, message: msg });
+          const c = classifyImportError(new Error(`too large (${(file.size / 1024).toFixed(0)} KB)`));
+          errors.push({ filename: file.name, message: c.message, rule: c.rule, hint: c.hint });
           appendAuditEvent({
             kind: "import_rejected",
-            summary: msg,
+            summary: c.message,
             detail: { filename: file.name, bytes: file.size },
           });
           continue;
         }
         if (file.type && !/^(application\/json|text\/)/.test(file.type)) {
           const msg = `Unsupported file type: ${file.type}`;
-          errors.push({ filename: file.name, message: msg });
+          errors.push({
+            filename: file.name,
+            message: msg,
+            rule: "File type",
+            hint: "Pick a .json text file (not a binary upload).",
+          });
           appendAuditEvent({
             kind: "import_rejected",
             summary: msg,
@@ -417,6 +426,39 @@ function SkillsPage() {
             throw new Error("File contains binary (NUL) bytes");
           }
           const json: unknown = JSON.parse(raw);
+
+          if (
+            json &&
+            typeof json === "object" &&
+            "schemaVersion" in (json as Record<string, unknown>)
+          ) {
+            const migration = migrateLocalDataDump(json);
+            if (migration?.migrated) {
+              notices.push(
+                `${file.name}: ${migration.notes.join(" ") || "snapshot upgraded"}`,
+              );
+              appendAuditEvent({
+                kind: "import",
+                summary: `Migrated dump (v${migration.fromVersion} → v1) from ${file.name}`,
+                detail: { filename: file.name, slugCount: migration.dump.personas.length },
+              });
+            } else if (!migration) {
+              const msg = "Snapshot schemaVersion is newer than this app understands";
+              errors.push({
+                filename: file.name,
+                message: msg,
+                rule: "Schema version",
+                hint: "Update the app or use an older snapshot.",
+              });
+              appendAuditEvent({
+                kind: "import_rejected",
+                summary: msg,
+                detail: { filename: file.name, bytes: file.size },
+              });
+              continue;
+            }
+          }
+
           const parsed = parseImport(json);
           const incomingExportedAt =
             (json as { exportedAt?: string } | null)?.exportedAt ?? undefined;
@@ -440,11 +482,11 @@ function SkillsPage() {
             });
           }
         } catch (e) {
-          const msg = friendlyImportError(e);
-          errors.push({ filename: file.name, message: msg });
+          const c = classifyImportError(e);
+          errors.push({ filename: file.name, message: c.message, rule: c.rule, hint: c.hint });
           appendAuditEvent({
             kind: "import_rejected",
-            summary: msg,
+            summary: c.message,
             detail: { filename: file.name, bytes: file.size },
           });
         }
@@ -452,6 +494,7 @@ function SkillsPage() {
 
       setStagedRows(rows);
       setStagedErrors(errors);
+      setMigrationNotice(notices.length > 0 ? notices.join(" • ") : undefined);
       if (rows.length === 0 && errors.length > 0) {
         toast.error(`No drafts to import — ${errors.length} file(s) rejected`);
         return;
@@ -502,6 +545,7 @@ function SkillsPage() {
     setReviewOpen(false);
     setStagedRows([]);
     setStagedErrors([]);
+    setMigrationNotice(undefined);
   }, []);
 
   const handleDownloadLocalData = useCallback(() => {
@@ -984,10 +1028,19 @@ function SkillsPage() {
           open={reviewOpen}
           rows={stagedRows}
           errors={stagedErrors}
+          migrationNotice={migrationNotice}
+          onRetry={() => {
+            setReviewOpen(false);
+            setStagedRows([]);
+            setStagedErrors([]);
+            setMigrationNotice(undefined);
+            importInputRef.current?.click();
+          }}
           onCancel={() => {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
+            setMigrationNotice(undefined);
           }}
           onApply={applyStagedRows}
         />

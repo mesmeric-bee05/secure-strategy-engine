@@ -95,7 +95,6 @@ describe("skills import pipeline — safe-text end-to-end", () => {
   });
 });
 
-import { friendlyImportError } from "@/lib/skills-drafts";
 
 describe("skills import — extended HTML/JS rejection matrix", () => {
   beforeEach(() => window.localStorage.clear());

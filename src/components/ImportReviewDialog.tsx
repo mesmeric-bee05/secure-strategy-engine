@@ -27,6 +27,10 @@ export interface StagedRow {
 export interface FileError {
   filename: string;
   message: string;
+  /** Short rule label, e.g. "Safe text", "JSON syntax", "Schema". */
+  rule?: string;
+  /** Suggested next step shown to the user (single sentence). */
+  hint?: string;
 }
 
 export interface ImportReviewDialogProps {
@@ -35,7 +39,12 @@ export interface ImportReviewDialogProps {
   errors: FileError[];
   onCancel: () => void;
   onApply: (rows: StagedRow[]) => void;
+  /** Optional: re-open the file picker so the user can retry. */
+  onRetry?: () => void;
+  /** Optional: human-readable migration notice (e.g. "Upgraded from v0 → v1"). */
+  migrationNotice?: string;
 }
+
 
 const ACTIONS: ConflictAction[] = ["keep", "overwrite", "append"];
 
@@ -46,6 +55,8 @@ export function ImportReviewDialog({
   errors,
   onCancel,
   onApply,
+  onRetry,
+  migrationNotice,
 }: ImportReviewDialogProps) {
   const [staged, setStaged] = useState<StagedRow[]>(rows);
 
@@ -81,6 +92,15 @@ export function ImportReviewDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {migrationNotice && (
+          <div
+            role="status"
+            className="rounded-md border border-gold-glow bg-gold-soft/30 px-3 py-2 text-[11.5px] text-tx-1"
+          >
+            {migrationNotice}
+          </div>
+        )}
+
         {errors.length > 0 && (
           <div
             role="alert"
@@ -90,15 +110,32 @@ export function ImportReviewDialog({
               <AlertCircle className="h-3 w-3" aria-hidden="true" />
               {errors.length} file{errors.length === 1 ? "" : "s"} could not be read
             </p>
-            <ul className="ml-4 list-disc space-y-0.5">
+            <ul className="ml-4 list-disc space-y-1">
               {errors.map((e, i) => (
                 <li key={i}>
-                  <span className="font-mono">{e.filename}</span> — {e.message}
+                  <span className="font-mono">{e.filename}</span>
+                  {e.rule && (
+                    <span className="ml-1 rounded-sm border border-coral/40 bg-coral/10 px-1 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider">
+                      {e.rule}
+                    </span>
+                  )}{" "}
+                  — {e.message}
+                  {e.hint && <span className="block text-[10.5px] italic text-tx-2">{e.hint}</span>}
                 </li>
               ))}
             </ul>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-coral underline underline-offset-2 hover:opacity-80"
+              >
+                Pick a corrected file and retry
+              </button>
+            )}
           </div>
         )}
+
 
         {staged.length > 1 && (
           <div
