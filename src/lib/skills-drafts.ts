@@ -480,3 +480,27 @@ export function localDataFilename(now: Date = new Date()): string {
   const ss = String(now.getUTCSeconds()).padStart(2, "0");
   return `talentgraph-skills-local-data-${y}${m}${d}-${hh}${mm}${ss}.json`;
 }
+
+export type ParseLocalDataDumpResult =
+  | { ok: true; dump: LocalDataDump }
+  | { ok: false; reason: "invalid_shape" | "unknown_schema_version"; got?: unknown };
+
+/**
+ * Validate a parsed JSON snapshot produced by `buildLocalDataDump`.
+ * Used by future migrators / re-import flows; today it guarantees that
+ * snapshots taken now will be reliably re-readable across app updates.
+ */
+export function parseLocalDataDump(input: unknown): ParseLocalDataDumpResult {
+  if (!isPlainObject(input)) return { ok: false, reason: "invalid_shape" };
+  const v = (input as { schemaVersion?: unknown }).schemaVersion;
+  if (typeof v !== "number") return { ok: false, reason: "invalid_shape" };
+  if (v !== LOCAL_DATA_DUMP_VERSION) {
+    return { ok: false, reason: "unknown_schema_version", got: v };
+  }
+  // Spot-check a couple of required fields.
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.generatedAt !== "string" || !Array.isArray(obj.personas)) {
+    return { ok: false, reason: "invalid_shape" };
+  }
+  return { ok: true, dump: input as LocalDataDump };
+}
