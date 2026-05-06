@@ -375,6 +375,7 @@ function SkillsPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
   const [stagedErrors, setStagedErrors] = useState<FileError[]>([]);
+  const [migrationNotice, setMigrationNotice] = useState<string | undefined>(undefined);
 
   const stageFiles = useCallback(
     async (files: File[]) => {
