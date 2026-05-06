@@ -1034,7 +1034,6 @@ function SkillsPage() {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
-    setMigrationNotice(undefined);
             setMigrationNotice(undefined);
             importInputRef.current?.click();
           }}
@@ -1042,7 +1041,6 @@ function SkillsPage() {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
-    setMigrationNotice(undefined);
             setMigrationNotice(undefined);
           }}
           onApply={applyStagedRows}
