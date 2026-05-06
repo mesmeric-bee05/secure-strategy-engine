@@ -502,5 +502,5 @@ export function parseLocalDataDump(input: unknown): ParseLocalDataDumpResult {
   if (typeof obj.generatedAt !== "string" || !Array.isArray(obj.personas)) {
     return { ok: false, reason: "invalid_shape" };
   }
-  return { ok: true, dump: input as LocalDataDump };
+  return { ok: true, dump: input as unknown as LocalDataDump };
 }
