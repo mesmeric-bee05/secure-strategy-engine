@@ -94,3 +94,101 @@ describe("skills import pipeline — safe-text end-to-end", () => {
     expect(stored.sarah).toContain("repair phones");
   });
 });
+
+import { friendlyImportError } from "@/lib/skills-drafts";
+
+describe("skills import — extended HTML/JS rejection matrix", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  const cases: Array<{ name: string; payload: string; matches?: RegExp }> = [
+    { name: "iframe", payload: '<iframe src="javascript:alert(1)"></iframe>', matches: /HTML\/JS/i },
+    { name: "img onerror", payload: '<img src=x onerror="alert(1)">', matches: /HTML\/JS/i },
+    { name: "svg onload", payload: '<svg onload="alert(1)"></svg>', matches: /HTML\/JS/i },
+    { name: "javascript: url", payload: "click javascript:void(0) here", matches: /HTML\/JS/i },
+    { name: "data:text/html", payload: "data:text/html,<b>x</b>", matches: /HTML\/JS/i },
+    { name: "bare onclick", payload: 'hello onclick="x()" world', matches: /HTML\/JS/i },
+    { name: "mixed case script", payload: "<ScRiPt>alert(1)</ScRiPt>", matches: /HTML\/JS/i },
+    { name: "padded script", payload: "<  script  >x</script>", matches: /HTML\/JS/i },
+    { name: "vertical tab", payload: "before\u000Bafter", matches: /control characters/i },
+    { name: "form feed", payload: "before\u000Cafter", matches: /control characters/i },
+  ];
+
+  for (const c of cases) {
+    it(`rejects ${c.name} payload`, async () => {
+      const file = new File(
+        [
+          JSON.stringify({
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            drafts: { sarah: c.payload },
+            languages: {},
+          }),
+        ],
+        "x.json",
+        { type: "application/json" },
+      );
+      const r = await runImport(file);
+      expect(r.ok).toBe(false);
+      if (!r.ok && c.matches) expect(r.message).toMatch(c.matches);
+      expect(window.localStorage.getItem(DRAFT_MAP_KEY)).toBeNull();
+    });
+  }
+
+  it("rejects oversized text > 20,000 chars", async () => {
+    const file = new File(
+      [
+        JSON.stringify({
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          drafts: { sarah: "a".repeat(20_001) },
+          languages: {},
+        }),
+      ],
+      "big.json",
+      { type: "application/json" },
+    );
+    const r = await runImport(file);
+    expect(r.ok).toBe(false);
+    expect(window.localStorage.getItem(DRAFT_MAP_KEY)).toBeNull();
+  });
+
+  it("rejects non-string draft value", async () => {
+    const file = new File(
+      [JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), drafts: { sarah: 123 }, languages: {} })],
+      "n.json",
+      { type: "application/json" },
+    );
+    const r = await runImport(file);
+    expect(r.ok).toBe(false);
+    expect(window.localStorage.getItem(DRAFT_MAP_KEY)).toBeNull();
+  });
+
+  it("rejects array as drafts (not plain object)", async () => {
+    const file = new File(
+      [JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), drafts: [], languages: {} })],
+      "a.json",
+      { type: "application/json" },
+    );
+    const r = await runImport(file);
+    expect(r.ok).toBe(false);
+    expect(window.localStorage.getItem(DRAFT_MAP_KEY)).toBeNull();
+  });
+
+  it("strips __proto__ key without polluting Object.prototype", async () => {
+    const raw = '{"version":1,"exportedAt":"2025-01-01T00:00:00Z","drafts":{"__proto__":"polluted","sarah":"ok"},"languages":{}}';
+    const file = new File([raw], "p.json", { type: "application/json" });
+    const r = await runImport(file);
+    expect(r.ok).toBe(true);
+    // Object.prototype must not be polluted.
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    const stored = JSON.parse(window.localStorage.getItem(DRAFT_MAP_KEY) ?? "{}");
+    expect(stored.__proto__).toBeUndefined();
+    expect(stored.sarah).toBe("ok");
+  });
+
+  it("friendlyImportError returns a string for arbitrary throwables", () => {
+    expect(typeof friendlyImportError(new Error("boom"))).toBe("string");
+    expect(typeof friendlyImportError("oops")).toBe("string");
+    expect(typeof friendlyImportError(undefined)).toBe("string");
+  });
+});
