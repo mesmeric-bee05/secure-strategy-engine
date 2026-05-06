@@ -504,3 +504,58 @@ export function parseLocalDataDump(input: unknown): ParseLocalDataDumpResult {
   }
   return { ok: true, dump: input as unknown as LocalDataDump };
 }
+
+export interface MigrationOutcome {
+  dump: LocalDataDump;
+  /** True if the input was on an older schema and we upgraded it. */
+  migrated: boolean;
+  /** The original version we observed (may be 0 for pre-versioned dumps). */
+  fromVersion: number;
+  /** Human-readable notes about what was changed. */
+  notes: string[];
+}
+
+/**
+ * Attempt to migrate a local-data dump from an older schemaVersion to the
+ * current one. Returns null if the input is unrecognisable or its version is
+ * newer than this app understands.
+ *
+ * Version history:
+ *   - v0 (legacy / pre-versioned): no `schemaVersion`, but has `personas[]`
+ *     and `generatedAt`. We assign schemaVersion=1.
+ *   - v1 (current): pass-through.
+ */
+export function migrateLocalDataDump(input: unknown): MigrationOutcome | null {
+  if (!isPlainObject(input)) return null;
+  const obj = input as Record<string, unknown>;
+  const v = typeof obj.schemaVersion === "number" ? obj.schemaVersion : 0;
+
+  if (v > LOCAL_DATA_DUMP_VERSION) return null; // newer than we know
+  if (typeof obj.generatedAt !== "string" || !Array.isArray(obj.personas)) return null;
+
+  if (v === LOCAL_DATA_DUMP_VERSION) {
+    return {
+      dump: input as unknown as LocalDataDump,
+      migrated: false,
+      fromVersion: v,
+      notes: [],
+    };
+  }
+
+  // v0 → v1: stamp schemaVersion + ensure schema block exists.
+  const upgraded: LocalDataDump = {
+    ...(input as unknown as LocalDataDump),
+    schemaVersion: LOCAL_DATA_DUMP_VERSION,
+    schema: (obj.schema as LocalDataDump["schema"]) ?? {
+      version: 1,
+      format: "talentgraph.local-data.v1",
+      reImportable: false,
+    },
+  };
+  return {
+    dump: upgraded,
+    migrated: true,
+    fromVersion: v,
+    notes: [`Upgraded snapshot from schemaVersion ${v} to ${LOCAL_DATA_DUMP_VERSION}.`],
+  };
+}
