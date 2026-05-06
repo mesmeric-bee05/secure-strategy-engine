@@ -546,6 +546,7 @@ function SkillsPage() {
     setReviewOpen(false);
     setStagedRows([]);
     setStagedErrors([]);
+    setMigrationNotice(undefined);
   }, []);
 
   const handleDownloadLocalData = useCallback(() => {
@@ -1033,6 +1034,7 @@ function SkillsPage() {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
+    setMigrationNotice(undefined);
             setMigrationNotice(undefined);
             importInputRef.current?.click();
           }}
@@ -1040,6 +1042,7 @@ function SkillsPage() {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
+    setMigrationNotice(undefined);
             setMigrationNotice(undefined);
           }}
           onApply={applyStagedRows}
