@@ -1028,10 +1028,19 @@ function SkillsPage() {
           open={reviewOpen}
           rows={stagedRows}
           errors={stagedErrors}
+          migrationNotice={migrationNotice}
+          onRetry={() => {
+            setReviewOpen(false);
+            setStagedRows([]);
+            setStagedErrors([]);
+            setMigrationNotice(undefined);
+            importInputRef.current?.click();
+          }}
           onCancel={() => {
             setReviewOpen(false);
             setStagedRows([]);
             setStagedErrors([]);
+            setMigrationNotice(undefined);
           }}
           onApply={applyStagedRows}
         />
