@@ -386,7 +386,13 @@ export interface LocalDataDumpPersona {
   text: string;
 }
 
+/** Top-level migrator hook for the local-data dump format. */
+export const LOCAL_DATA_DUMP_VERSION = 1 as const;
+export type LocalDataDumpVersion = typeof LOCAL_DATA_DUMP_VERSION;
+
 export interface LocalDataDump {
+  /** Flat top-level version field — single source of truth for migrators. */
+  schemaVersion: LocalDataDumpVersion;
   generatedAt: string;
   app: "TalentGraph Africa — Skills";
   appVersion: string;
