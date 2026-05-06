@@ -200,6 +200,7 @@ export function ImportReviewDialog({
             type="button"
             onClick={() => onApply(staged)}
             disabled={applyCount === 0}
+            aria-live="polite"
             className="rounded-md bg-gold px-3 py-1.5 text-[11px] font-semibold text-bg-0 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Apply {applyCount} change{applyCount === 1 ? "" : "s"}
