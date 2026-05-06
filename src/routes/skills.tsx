@@ -427,6 +427,39 @@ function SkillsPage() {
             throw new Error("File contains binary (NUL) bytes");
           }
           const json: unknown = JSON.parse(raw);
+
+          if (
+            json &&
+            typeof json === "object" &&
+            "schemaVersion" in (json as Record<string, unknown>)
+          ) {
+            const migration = migrateLocalDataDump(json);
+            if (migration?.migrated) {
+              notices.push(
+                `${file.name}: ${migration.notes.join(" ") || "snapshot upgraded"}`,
+              );
+              appendAuditEvent({
+                kind: "import",
+                summary: `Migrated dump (v${migration.fromVersion} → v1) from ${file.name}`,
+                detail: { filename: file.name, slugCount: migration.dump.personas.length },
+              });
+            } else if (!migration) {
+              const msg = "Snapshot schemaVersion is newer than this app understands";
+              errors.push({
+                filename: file.name,
+                message: msg,
+                rule: "Schema version",
+                hint: "Update the app or use an older snapshot.",
+              });
+              appendAuditEvent({
+                kind: "import_rejected",
+                summary: msg,
+                detail: { filename: file.name, bytes: file.size },
+              });
+              continue;
+            }
+          }
+
           const parsed = parseImport(json);
           const incomingExportedAt =
             (json as { exportedAt?: string } | null)?.exportedAt ?? undefined;
@@ -450,11 +483,11 @@ function SkillsPage() {
             });
           }
         } catch (e) {
-          const msg = friendlyImportError(e);
-          errors.push({ filename: file.name, message: msg });
+          const c = classifyImportError(e);
+          errors.push({ filename: file.name, message: c.message, rule: c.rule, hint: c.hint });
           appendAuditEvent({
             kind: "import_rejected",
-            summary: msg,
+            summary: c.message,
             detail: { filename: file.name, bytes: file.size },
           });
         }
@@ -462,6 +495,7 @@ function SkillsPage() {
 
       setStagedRows(rows);
       setStagedErrors(errors);
+      setMigrationNotice(notices.length > 0 ? notices.join(" • ") : undefined);
       if (rows.length === 0 && errors.length > 0) {
         toast.error(`No drafts to import — ${errors.length} file(s) rejected`);
         return;
