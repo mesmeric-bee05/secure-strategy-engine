@@ -438,6 +438,7 @@ export function buildLocalDataDump({
     };
   });
   return {
+    schemaVersion: LOCAL_DATA_DUMP_VERSION,
     generatedAt: now.toISOString(),
     app: "TalentGraph Africa — Skills",
     appVersion,
