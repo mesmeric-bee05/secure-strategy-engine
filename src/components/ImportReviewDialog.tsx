@@ -27,6 +27,10 @@ export interface StagedRow {
 export interface FileError {
   filename: string;
   message: string;
+  /** Short rule label, e.g. "Safe text", "JSON syntax", "Schema". */
+  rule?: string;
+  /** Suggested next step shown to the user (single sentence). */
+  hint?: string;
 }
 
 export interface ImportReviewDialogProps {
@@ -35,7 +39,12 @@ export interface ImportReviewDialogProps {
   errors: FileError[];
   onCancel: () => void;
   onApply: (rows: StagedRow[]) => void;
+  /** Optional: re-open the file picker so the user can retry. */
+  onRetry?: () => void;
+  /** Optional: human-readable migration notice (e.g. "Upgraded from v0 → v1"). */
+  migrationNotice?: string;
 }
+
 
 const ACTIONS: ConflictAction[] = ["keep", "overwrite", "append"];
 
