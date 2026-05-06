@@ -262,3 +262,42 @@ describe("assertSafeText", () => {
     expect(() => assertSafeText(123 as unknown)).toThrow(SafeTextError);
   });
 });
+
+import {
+  LOCAL_DATA_DUMP_VERSION,
+  buildLocalDataDump,
+  parseLocalDataDump,
+} from "@/lib/skills-drafts";
+
+describe("local-data dump: schemaVersion + parser", () => {
+  it("buildLocalDataDump emits a top-level schemaVersion", () => {
+    const dump = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    expect(dump.schemaVersion).toBe(LOCAL_DATA_DUMP_VERSION);
+    expect(dump.schemaVersion).toBe(1);
+  });
+
+  it("parseLocalDataDump round-trips a freshly built dump", () => {
+    const dump = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    const result = parseLocalDataDump(JSON.parse(JSON.stringify(dump)));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.dump.schemaVersion).toBe(1);
+  });
+
+  it("rejects an unknown schemaVersion", () => {
+    const r = parseLocalDataDump({ schemaVersion: 99, generatedAt: "x", personas: [] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("unknown_schema_version");
+      expect(r.got).toBe(99);
+    }
+  });
+
+  it("rejects non-object payloads", () => {
+    expect(parseLocalDataDump(null).ok).toBe(false);
+    expect(parseLocalDataDump("nope").ok).toBe(false);
+    expect(parseLocalDataDump([]).ok).toBe(false);
+    const missing = parseLocalDataDump({ schemaVersion: 1 });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.reason).toBe("invalid_shape");
+  });
+});

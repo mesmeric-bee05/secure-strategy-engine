@@ -66,6 +66,10 @@ export function ImportReviewDialog({
     );
   }
 
+  function setAllActions(action: ConflictAction) {
+    setStaged((prev) => prev.map((r) => ({ ...r, action, autoChosen: false })));
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
@@ -93,6 +97,26 @@ export function ImportReviewDialog({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {staged.length > 1 && (
+          <div
+            role="group"
+            aria-label="Apply the same action to all personas"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-border-soft bg-bg-2 px-3 py-2 text-[11px]"
+          >
+            <span className="font-semibold text-tx-1">Apply to all:</span>
+            {ACTIONS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setAllActions(a)}
+                className="rounded-md border border-border-strong bg-bg-3 px-2.5 py-1 text-[10.5px] font-medium capitalize text-tx-1 transition hover:border-gold-glow"
+              >
+                {a} all
+              </button>
+            ))}
           </div>
         )}
 
@@ -176,6 +200,7 @@ export function ImportReviewDialog({
             type="button"
             onClick={() => onApply(staged)}
             disabled={applyCount === 0}
+            aria-live="polite"
             className="rounded-md bg-gold px-3 py-1.5 text-[11px] font-semibold text-bg-0 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Apply {applyCount} change{applyCount === 1 ? "" : "s"}

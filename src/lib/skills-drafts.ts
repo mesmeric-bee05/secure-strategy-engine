@@ -386,7 +386,13 @@ export interface LocalDataDumpPersona {
   text: string;
 }
 
+/** Top-level migrator hook for the local-data dump format. */
+export const LOCAL_DATA_DUMP_VERSION = 1 as const;
+export type LocalDataDumpVersion = typeof LOCAL_DATA_DUMP_VERSION;
+
 export interface LocalDataDump {
+  /** Flat top-level version field — single source of truth for migrators. */
+  schemaVersion: LocalDataDumpVersion;
   generatedAt: string;
   app: "TalentGraph Africa — Skills";
   appVersion: string;
@@ -432,6 +438,7 @@ export function buildLocalDataDump({
     };
   });
   return {
+    schemaVersion: LOCAL_DATA_DUMP_VERSION,
     generatedAt: now.toISOString(),
     app: "TalentGraph Africa — Skills",
     appVersion,
@@ -472,4 +479,28 @@ export function localDataFilename(now: Date = new Date()): string {
   const mm = String(now.getUTCMinutes()).padStart(2, "0");
   const ss = String(now.getUTCSeconds()).padStart(2, "0");
   return `talentgraph-skills-local-data-${y}${m}${d}-${hh}${mm}${ss}.json`;
+}
+
+export type ParseLocalDataDumpResult =
+  | { ok: true; dump: LocalDataDump }
+  | { ok: false; reason: "invalid_shape" | "unknown_schema_version"; got?: unknown };
+
+/**
+ * Validate a parsed JSON snapshot produced by `buildLocalDataDump`.
+ * Used by future migrators / re-import flows; today it guarantees that
+ * snapshots taken now will be reliably re-readable across app updates.
+ */
+export function parseLocalDataDump(input: unknown): ParseLocalDataDumpResult {
+  if (!isPlainObject(input)) return { ok: false, reason: "invalid_shape" };
+  const v = (input as { schemaVersion?: unknown }).schemaVersion;
+  if (typeof v !== "number") return { ok: false, reason: "invalid_shape" };
+  if (v !== LOCAL_DATA_DUMP_VERSION) {
+    return { ok: false, reason: "unknown_schema_version", got: v };
+  }
+  // Spot-check a couple of required fields.
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.generatedAt !== "string" || !Array.isArray(obj.personas)) {
+    return { ok: false, reason: "invalid_shape" };
+  }
+  return { ok: true, dump: input as unknown as LocalDataDump };
 }
