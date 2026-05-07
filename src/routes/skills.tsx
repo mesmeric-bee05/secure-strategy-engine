@@ -56,6 +56,7 @@ import { StorageCapabilityNotice } from "@/components/StorageCapabilityNotice";
 import { SkillsAuditLog } from "@/components/SkillsAuditLog";
 import { appendAuditEvent } from "@/lib/skills-audit";
 import { ImportReviewDialog, type StagedRow, type FileError } from "@/components/ImportReviewDialog";
+import { DropImportZone } from "@/components/DropImportZone";
 import { HardDriveDownload } from "lucide-react";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
@@ -791,6 +792,7 @@ function SkillsPage() {
                 />
               </div>
             </div>
+            <DropImportZone onFiles={(files) => void stageFiles(files)} />
             <p className="mb-3 text-[11.5px] text-tx-2">
               Include informal work, self-taught skills, and community roles.
             </p>
