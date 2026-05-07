@@ -357,3 +357,54 @@ describe("classifyImportError", () => {
     expect(classifyImportError("???").rule).toBe("Import");
   });
 });
+
+describe("local data dump — schemaVersion", () => {
+  it("buildLocalDataDump always stamps schemaVersion: 1", async () => {
+    const { buildLocalDataDump, LOCAL_DATA_DUMP_VERSION } = await import("@/lib/skills-drafts");
+    const empty = buildLocalDataDump({ drafts: {}, languages: {} });
+    expect(empty.schemaVersion).toBe(1);
+    expect(LOCAL_DATA_DUMP_VERSION).toBe(1);
+    const populated = buildLocalDataDump({
+      drafts: { sarah: "hi" },
+      languages: { sarah: "en-US" },
+    });
+    expect(populated.schemaVersion).toBe(1);
+  });
+
+  it("round-trips through JSON via parseLocalDataDump", async () => {
+    const { buildLocalDataDump, parseLocalDataDump } = await import("@/lib/skills-drafts");
+    const dump = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    const restored = parseLocalDataDump(JSON.parse(JSON.stringify(dump)));
+    expect(restored.ok).toBe(true);
+    if (restored.ok) expect(restored.dump.schemaVersion).toBe(1);
+  });
+
+  it("migrateLocalDataDump upgrades v0 (no schemaVersion) to v1", async () => {
+    const { buildLocalDataDump, migrateLocalDataDump } = await import("@/lib/skills-drafts");
+    const v1 = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    const v0 = { ...v1 } as Record<string, unknown>;
+    delete v0.schemaVersion;
+    const out = migrateLocalDataDump(v0);
+    expect(out).not.toBeNull();
+    expect(out!.migrated).toBe(true);
+    expect(out!.fromVersion).toBe(0);
+    expect(out!.dump.schemaVersion).toBe(1);
+    expect(out!.notes.join(" ")).toMatch(/Upgraded snapshot/);
+  });
+
+  it("migrateLocalDataDump returns null for newer schemaVersion", async () => {
+    const { buildLocalDataDump, migrateLocalDataDump } = await import("@/lib/skills-drafts");
+    const v1 = buildLocalDataDump({ drafts: {}, languages: {} });
+    const future = { ...v1, schemaVersion: 99 };
+    expect(migrateLocalDataDump(future)).toBeNull();
+  });
+
+  it("migrateLocalDataDump passes through current v1 unchanged", async () => {
+    const { buildLocalDataDump, migrateLocalDataDump } = await import("@/lib/skills-drafts");
+    const v1 = buildLocalDataDump({ drafts: { sarah: "hi" }, languages: {} });
+    const out = migrateLocalDataDump(v1)!;
+    expect(out.migrated).toBe(false);
+    expect(out.fromVersion).toBe(1);
+    expect(out.dump.schemaVersion).toBe(1);
+  });
+});
