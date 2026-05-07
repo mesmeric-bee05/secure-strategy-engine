@@ -56,6 +56,7 @@ import { StorageCapabilityNotice } from "@/components/StorageCapabilityNotice";
 import { SkillsAuditLog } from "@/components/SkillsAuditLog";
 import { appendAuditEvent } from "@/lib/skills-audit";
 import { ImportReviewDialog, type StagedRow, type FileError } from "@/components/ImportReviewDialog";
+import { DropImportZone } from "@/components/DropImportZone";
 import { HardDriveDownload } from "lucide-react";
 
 const RESTORED_BANNER_KEY = "talentgraph:skills:restored-banner-dismissed";
