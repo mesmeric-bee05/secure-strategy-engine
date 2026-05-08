@@ -14,6 +14,7 @@ import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OpportunitiesMapRouteImport } from './routes/opportunities.map'
 import { Route as CredentialIdRouteImport } from './routes/credential.$id'
 
 const SkillsRoute = SkillsRouteImport.update({
@@ -41,6 +42,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpportunitiesMapRoute = OpportunitiesMapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => OpportunitiesRoute,
+} as any)
 const CredentialIdRoute = CredentialIdRouteImport.update({
   id: '/credential/$id',
   path: '/credential/$id',
@@ -49,28 +55,31 @@ const CredentialIdRoute = CredentialIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/opportunities': typeof OpportunitiesRoute
+  '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
+  '/opportunities/map': typeof OpportunitiesMapRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/opportunities': typeof OpportunitiesRoute
+  '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
+  '/opportunities/map': typeof OpportunitiesMapRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/opportunities': typeof OpportunitiesRoute
+  '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
   '/credential/$id': typeof CredentialIdRoute
+  '/opportunities/map': typeof OpportunitiesMapRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/security'
     | '/skills'
     | '/credential/$id'
+    | '/opportunities/map'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/security'
     | '/skills'
     | '/credential/$id'
+    | '/opportunities/map'
   id:
     | '__root__'
     | '/'
@@ -97,11 +108,12 @@ export interface FileRouteTypes {
     | '/security'
     | '/skills'
     | '/credential/$id'
+    | '/opportunities/map'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  OpportunitiesRoute: typeof OpportunitiesRoute
+  OpportunitiesRoute: typeof OpportunitiesRouteWithChildren
   ReadinessRoute: typeof ReadinessRoute
   SecurityRoute: typeof SecurityRoute
   SkillsRoute: typeof SkillsRoute
@@ -145,6 +157,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/opportunities/map': {
+      id: '/opportunities/map'
+      path: '/map'
+      fullPath: '/opportunities/map'
+      preLoaderRoute: typeof OpportunitiesMapRouteImport
+      parentRoute: typeof OpportunitiesRoute
+    }
     '/credential/$id': {
       id: '/credential/$id'
       path: '/credential/$id'
@@ -155,9 +174,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface OpportunitiesRouteChildren {
+  OpportunitiesMapRoute: typeof OpportunitiesMapRoute
+}
+
+const OpportunitiesRouteChildren: OpportunitiesRouteChildren = {
+  OpportunitiesMapRoute: OpportunitiesMapRoute,
+}
+
+const OpportunitiesRouteWithChildren = OpportunitiesRoute._addFileChildren(
+  OpportunitiesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  OpportunitiesRoute: OpportunitiesRoute,
+  OpportunitiesRoute: OpportunitiesRouteWithChildren,
   ReadinessRoute: ReadinessRoute,
   SecurityRoute: SecurityRoute,
   SkillsRoute: SkillsRoute,
@@ -166,12 +197,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
