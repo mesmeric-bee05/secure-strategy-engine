@@ -6,7 +6,7 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://ai.gateway.lovable.dev wss://*.supabase.co; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev https://tiles.openfreemap.org https://*.openfreemap.org; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://ai.gateway.lovable.dev https://tiles.openfreemap.org https://*.openfreemap.org wss://*.supabase.co; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
 
 # Static assets — cache hard, immutable filenames are content-hashed
 /_build/*
