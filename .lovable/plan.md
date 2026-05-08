@@ -1,56 +1,87 @@
-# Test hardening: import error UI, schema versioning, retry & migration
 
-Four new automated test suites that lock in the recent /skills hardening work. No production code changes are required — the implementations (`classifyImportError`, `migrateLocalDataDump`, `LOCAL_DATA_DUMP_VERSION`, `ImportReviewDialog` retry/migration props, `stageFiles`/`applyStagedRows`) are already in place. We are adding the missing test coverage and one small UX polish to the dialog so the migration banner can be dismissed independently of cancel.
+# TalentGraph — Map, AI, UI Overhaul
 
-## 1. A11y tests for the enriched error UI
+GitHub Actions workflow running all suites is already live (`.github/workflows/tests.yml`). This plan covers the three remaining tracks, sequenced so each phase ships independently and tests stay green.
 
-File: `src/components/__tests__/ImportReviewDialog.a11y.test.tsx` (new)
+## Phase 1 — Geolocation map (`/opportunities/map`)
 
-- Renders the dialog with `errors=[{ rule: "Safe text", hint: "Remove HTML…", … }]` and `onRetry`.
-- Asserts:
-  - The errors block has `role="alert"` (live announcement).
-  - Each rule renders as visible chip text inside the alert.
-  - Hint text is rendered and associated with the same alert region.
-  - The retry button is reachable by Tab order, has accessible name "Pick a corrected file and retry", and triggers `onRetry` on Enter and Space.
-  - When `migrationNotice` is set, a `role="status"` region is rendered (polite announcement) and is distinct from the alert.
-- Uses `@testing-library/user-event` for keyboard interaction.
+**Library:** `maplibre-gl` + OpenFreeMap vector tiles (`https://tiles.openfreemap.org/styles/liberty`). No API key, no secrets.
 
-## 2. Schema-version unit tests for the local-data dump
+**New files:**
+- `src/components/OpportunitiesMap.tsx` — MapLibre canvas, clustered GeoJSON source for opportunity pins, popup on click, "Use my location" toggle.
+- `src/components/GeolocationConsent.tsx` — banner that requests `navigator.geolocation` only after explicit click; stores consent in `localStorage` (`tg.geo.consent.v1`).
+- `src/lib/geo.ts` — haversine distance, bbox helpers, lat/lng zod schema, `withinRadiusKm`.
+- `src/routes/opportunities.map.tsx` — new TanStack route with own `head()` metadata.
+- `src/lib/__tests__/geo.test.ts` — distance + radius unit tests.
+- `src/components/__tests__/GeolocationConsent.test.tsx` — consent gate (no auto-prompt, a11y label, focus on button).
 
-File: `src/lib/__tests__/skills-drafts.test.ts` (extend existing)
+**Edits:**
+- `src/server/opportunities.functions.ts` — extend mock data with `lat`/`lng`/`city`/`countryCode`; add `listOpportunitiesNear({ lat, lng, radiusKm })` server fn.
+- `src/routes/opportunities.tsx` — add a "Map view" `<Link to="/opportunities/map">` toggle.
 
-Add a `describe("local data dump — schemaVersion")` block:
+**Privacy/security:**
+- Geolocation only on user click; consent revocable from the same banner.
+- User coordinates never sent to server — radius filter happens client-side.
+- Tile URL pinned to OpenFreeMap; no third-party scripts.
 
-- `buildLocalDataDump({...})` always sets `schemaVersion: 1` (matches `LOCAL_DATA_DUMP_VERSION`), even when drafts/languages are empty.
-- Round-trip: `parseLocalDataDump(JSON.parse(JSON.stringify(buildLocalDataDump(...))))` returns `{ ok: true, dump }` with `dump.schemaVersion === 1`.
-- `migrateLocalDataDump` upgrades a v0 dump (no `schemaVersion`, has `personas[]` + `generatedAt`) → `{ migrated: true, fromVersion: 0, dump.schemaVersion: 1, notes: [/Upgraded snapshot/] }`.
-- A dump with `schemaVersion: 99` returns `null` (newer than app).
-- A dump already on v1 returns `{ migrated: false, fromVersion: 1 }` unchanged.
+## Phase 2 — AI enhancements (Lovable AI Gateway)
 
-## 3. E2E retry-flow test
+**New edge functions** (`supabase/functions/...`, `verify_jwt = true` by default):
+- `extract-skills-multimodal/` — accepts `{ text?, imageBase64?, mimeType? }`, calls `google/gemini-2.5-pro` via gateway with **tool calling** (`extract_skills` schema: `skills[] { name, category, proficiency, evidence, marketRelevance }`). Returns parsed structured JSON. Handles 429/402 with explicit error JSON.
+- `match-explanation/` — **streaming** SSE endpoint that explains "why this opportunity matches your profile"; uses `google/gemini-3-flash-preview` with `stream: true`. Follows the SSE pattern in `useful-context` (line-by-line parse, `[DONE]` handling).
 
-File: `src/lib/__tests__/skills-import-retry.e2e.test.tsx` (new)
+**Shared helpers:**
+- `supabase/functions/_shared/cors.ts`, `_shared/lovable-ai.ts` — gateway URL, auth header, error mapping.
+- `supabase/functions/_shared/prompt-guard.ts` — port of existing `src/lib/security/prompt-guard.ts` for server-side prompt-injection screening before forwarding to the model.
 
-Mirrors the existing `skills-import-e2e.test.tsx` harness:
+**Frontend:**
+- `src/lib/ai/extract-skills.ts` — typed client for the multimodal function (zod-validates response).
+- `src/components/MatchExplanation.tsx` — streams tokens into a `<p aria-live="polite">`, abortable via `AbortController`, surfaces 429/402 toasts.
+- `src/components/ImagePortfolioUpload.tsx` — file picker (jpg/png ≤ 4 MB), client-side resize to ≤ 1024 px, base64 encode; reuses existing `classifyImportError`-style enriched error UI for rejects.
+- Wire `MatchExplanation` into `opportunities.tsx` opportunity cards (collapsible "Explain match"). Wire `ImagePortfolioUpload` into `skills.tsx` next to the existing text path.
 
-- Stage one bad file (invalid JSON `"{not json"`) and one good file via the same `stage()` helper, but route the bad one through `classifyImportError` so it lands in `errors` instead of `rows`.
-- Render `ImportReviewDialog` with `rows=[]`, `errors=[badFile]`, and an `onRetry` spy.
-- Click the "Pick a corrected file and retry" button → assert `onRetry` called once.
-- Simulate the parent re-staging by re-rendering the dialog with `rows=[goodRow]`, `errors=[]`.
-- Assert the alert region disappears, the staged row appears, and clicking "Apply 1 change" fires `onApply` with the corrected row.
+**Tests:**
+- `src/lib/ai/__tests__/extract-skills.test.ts` — mocks `fetch`, asserts request shape (tool definition), parses tool-call JSON, rejects schema violations.
+- `src/components/__tests__/MatchExplanation.test.tsx` — feeds a fake SSE stream via mocked `ReadableStream`, asserts incremental token render and abort cleanup.
+- `supabase/functions/extract-skills-multimodal/index.test.ts` — Deno test for prompt-guard rejection + 402/429 mapping.
 
-## 4. Migration warning integration test
+**Security hardening (carried into the AI track):**
+- All AI calls remain server-side; `LOVABLE_API_KEY` never reaches the client.
+- Per-IP rate limiting reused from `src/lib/security/rate-limit.ts` inside both edge functions.
+- Image uploads validated by mime + magic bytes (not just extension); strip EXIF before sending (client-side via `createImageBitmap` + canvas re-encode).
+- CSP header in `public/_headers` extended to allow `https://tiles.openfreemap.org` and `blob:` for the map; AI gateway already same-origin via edge function.
 
-File: `src/lib/__tests__/skills-import-migration.test.tsx` (new)
+## Phase 3 — UI/UX overhaul ("UNMAPPED" visual system)
 
-- Build a v0 dump payload (omit `schemaVersion`, keep `generatedAt` + `personas`) and feed it through the same staging logic used by `stageFiles` (extracted helper or inline copy of the migration branch).
-- Render `ImportReviewDialog` with the resulting rows, errors, and `migrationNotice="x.json: Upgraded snapshot from schemaVersion 0 to 1."`.
-- Assert a `role="status"` region containing "Upgraded snapshot" is visible.
-- Re-render with `migrationNotice={undefined}` (simulating retry / cancel cleanup that `applyStagedRows` already does) and assert the status region is gone.
-- Also assert that when a v1 file is staged, no `role="status"` region is rendered.
+Adopt the dark-gold aesthetic from `talentgraph_unmapped_v2-4.html`.
+
+**Design tokens** in `src/styles.css`:
+- Surfaces `--bg-0..4` (deep navy), borders `--border-0..2`, gold `--gold`/`--gold-2`/`--gold-glow`, accents teal/coral/lavender, text `--tx-0..2`.
+- Fonts via `<link>` in `__root.tsx`: Sora (display), Space Mono (mono), DM Sans (body). Tailwind `@theme` block exposes `font-display`, `font-mono`, `font-body`.
+- Gradient + shadow tokens (`--gradient-gold`, `--shadow-elegant`).
+
+**Component refresh** (presentation-only; no logic changes):
+- `Topbar.tsx`, `Sidebar.tsx`, `AppShell.tsx`, `PageHeader.tsx`, `Footer.tsx` — restyle with new tokens; sticky topbar with backdrop blur, gold logomark.
+- `src/routes/index.tsx` — new landing hero ("UNMAPPED — find work that matches what you actually do"), 3-up feature cards, CTA to `/skills`.
+- `src/components/ui/button.tsx` — add `premium` variant using `--gradient-gold`.
+- All existing surfaces re-skinned via tokens (no per-component color literals).
+
+**Route metadata:** distinct `head()` per route (`/`, `/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`) with unique title/description/og.
+
+**Accessibility:** maintain WCAG AA contrast on dark background (verified via `oklch` lightness of `--tx-0` vs `--bg-0`); keep all existing focus rings, role attributes, and the focus-management tests we already have.
+
+## Sequencing & verification
+
+1. Phase 1 lands first (smallest, isolated route). Run `bun run test` — expect existing 200+ tests + ~6 new geo/consent tests.
+2. Phase 2 adds edge functions + AI clients. Run `bun run test` and `supabase--test_edge_functions`.
+3. Phase 3 is presentation-only; run tests once more to confirm no regressions in a11y/focus/import suites.
+
+## Out of scope (deliberately deferred)
+
+- Blockchain/credential NFT issuance, Neo4j trust graph, WebAuthn passkeys, i18next multilingual — these are in the architecture doc but each is a multi-day track of its own; happy to plan them next once these three ship.
 
 ## Technical notes
 
-- All tests run under existing `vitest` + `jsdom` config; no new deps required (`@testing-library/user-event` is already used elsewhere — verify in `package.json` before running and add via `bun add -d @testing-library/user-event` if missing).
-- No changes to `ImportReviewDialog.tsx` behaviour — only test additions. If `package.json` lacks `user-event`, the a11y test will fall back to `fireEvent.keyDown` for Enter/Space.
-- Final verification: `bunx vitest run` → expect previous 173 + ~15 new tests passing.
+- MapLibre is Worker-safe; no SSR concerns because the map component is dynamically rendered behind a `useEffect` mount guard.
+- Edge functions use `verify_jwt = true` (default) so anonymous calls are blocked — frontend passes the Supabase session via `supabase.functions.invoke`.
+- No new secrets required: `LOVABLE_API_KEY` is auto-provisioned, OpenFreeMap is keyless.
