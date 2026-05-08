@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { MapPin, Users, Briefcase, BarChart3 } from "lucide-react";
 
+import { MatchExplanation } from "@/components/MatchExplanation";
+
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel, CitationChip } from "@/components/CitationsPanel";
@@ -395,6 +397,17 @@ function OpportunityCard({ o, matched }: { o: OpportunityCardDTO; matched: boole
       </div>
       {o.source && (
         <p className="mt-2 text-[9px] italic text-tx-2">Source: {o.source_citation ?? o.source}</p>
+      )}
+      {matched && (
+        <MatchExplanation
+          opportunity={{
+            title: o.title,
+            employer: o.employer,
+            required_skills: o.required_skills ?? [],
+            location: o.location,
+          }}
+          personaSummary={`Required skills overlap: ${(o.required_skills ?? []).join(", ")}`}
+        />
       )}
     </article>
   );
