@@ -1,87 +1,65 @@
+## Plan — Security hardening, Trust Graph, Passkeys, i18n
 
-# TalentGraph — Map, AI, UI Overhaul
+### ⚠️ Important: Next.js conversion is NOT recommended
+This project is built on **TanStack Start v1** (Vite + Cloudflare Workers SSR). Converting to Next.js would mean:
+- Rewriting every route, server function, and the auth middleware
+- Losing the existing Worker deployment, `_headers` CSP, edge function wiring, and 200+ passing tests
+- 1–2 weeks of pure migration work with no user-visible benefit — TanStack Start **already does SSR + per-route metadata**, which is what you actually need for SEO
 
-GitHub Actions workflow running all suites is already live (`.github/workflows/tests.yml`). This plan covers the three remaining tracks, sequenced so each phase ships independently and tests stay green.
+I recommend we **keep TanStack Start** and instead double down on its SSR + `head()` metadata (which is already in place). If you still want Next.js after seeing the rest land, we can revisit as a separate, dedicated track.
 
-## Phase 1 — Geolocation map (`/opportunities/map`)
+The plan below assumes we **stay on TanStack Start** and ship the other four tracks in sequence.
 
-**Library:** `maplibre-gl` + OpenFreeMap vector tiles (`https://tiles.openfreemap.org/styles/liberty`). No API key, no secrets.
+---
 
-**New files:**
-- `src/components/OpportunitiesMap.tsx` — MapLibre canvas, clustered GeoJSON source for opportunity pins, popup on click, "Use my location" toggle.
-- `src/components/GeolocationConsent.tsx` — banner that requests `navigator.geolocation` only after explicit click; stores consent in `localStorage` (`tg.geo.consent.v1`).
-- `src/lib/geo.ts` — haversine distance, bbox helpers, lat/lng zod schema, `withinRadiusKm`.
-- `src/routes/opportunities.map.tsx` — new TanStack route with own `head()` metadata.
-- `src/lib/__tests__/geo.test.ts` — distance + radius unit tests.
-- `src/components/__tests__/GeolocationConsent.test.tsx` — consent gate (no auto-prompt, a11y label, focus on button).
+### Phase 1 — AI edge function hardening (security)
+**Files:** `supabase/functions/_shared/{rate-limit.ts,validation.ts,logger.ts}`, edits to `extract-skills-multimodal/index.ts` and `match-explanation/index.ts`, new tests.
 
-**Edits:**
-- `src/server/opportunities.functions.ts` — extend mock data with `lat`/`lng`/`city`/`countryCode`; add `listOpportunitiesNear({ lat, lng, radiusKm })` server fn.
-- `src/routes/opportunities.tsx` — add a "Map view" `<Link to="/opportunities/map">` toggle.
+- **Rate limiting**: per-IP + per-user sliding window via existing `rl_check` Postgres function (already deployed). Buckets: `ai:extract` (10/min), `ai:explain` (30/min). Fail-closed on infra error.
+- **Request validation**: zod schemas for both function bodies — strict size caps (image ≤ 4 MB base64, text ≤ 8 KB persona, ≤ 2 KB opportunity), allow-listed mime types with magic-byte recheck server-side.
+- **Structured logging**: JSON log lines `{ts, fn, requestId, userId?, status, latencyMs, model, tokensIn?, tokensOut?, errorCode?}` to stdout (picked up by Cloud logs). New `_shared/logger.ts` with `logEvent()`.
+- **Alerts**: severity tag (`info|warn|error`); 5xx and 429-from-upstream emit `error` lines. Document how to wire to a log drain later (no infra change now).
+- **Tests**: Deno tests for rate-limit decision, schema rejection, oversized image rejection, mime spoofing rejection.
 
-**Privacy/security:**
-- Geolocation only on user click; consent revocable from the same banner.
-- User coordinates never sent to server — radius filter happens client-side.
-- Tile URL pinned to OpenFreeMap; no third-party scripts.
+### Phase 2 — Neo4j trust graph
+**Files:** `supabase/functions/trust-graph-sync/index.ts` (cron-style), `src/lib/trust-graph/{client.ts,queries.ts}`, `src/server/trust-graph.functions.ts`, `src/routes/_authenticated/trust-graph.tsx`, tests.
 
-## Phase 2 — AI enhancements (Lovable AI Gateway)
+- **Hosting**: Neo4j AuraDB Free (5 GB, no card). User adds three secrets: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` (will request via `add_secret` at start of phase).
+- **Schema**: `(:User)-[:HAS_SKILL {weight}]->(:Skill)`, `(:Skill)-[:EVIDENCED_BY]->(:Attestation)`, `(:Opportunity)-[:REQUIRES]->(:Skill)`, `(:Opportunity)-[:LOCATED_IN]->(:Place)`.
+- **Sync**: server fn `syncTrustGraph()` reads from Postgres (skills/attestations/opportunities) and `MERGE`s into Neo4j. Triggered manually + on attestation insert.
+- **Read paths**: server fn `findTrustedMatches(userId)` runs Cypher path query: `MATCH (u)-[:HAS_SKILL]->(s)<-[:REQUIRES]-(o) WHERE …` returning ranked opportunities w/ trust score.
+- **UI**: new `/trust-graph` route — small force-directed view (Cytoscape.js, lightweight) showing user's first/second-degree skill graph. Read-only.
+- **Security**: Neo4j calls server-side only; never expose Bolt creds; Cypher uses parameter binding (no string concat).
 
-**New edge functions** (`supabase/functions/...`, `verify_jwt = true` by default):
-- `extract-skills-multimodal/` — accepts `{ text?, imageBase64?, mimeType? }`, calls `google/gemini-2.5-pro` via gateway with **tool calling** (`extract_skills` schema: `skills[] { name, category, proficiency, evidence, marketRelevance }`). Returns parsed structured JSON. Handles 429/402 with explicit error JSON.
-- `match-explanation/` — **streaming** SSE endpoint that explains "why this opportunity matches your profile"; uses `google/gemini-3-flash-preview` with `stream: true`. Follows the SSE pattern in `useful-context` (line-by-line parse, `[DONE]` handling).
+### Phase 3 — WebAuthn passkeys
+**Files:** `src/server/webauthn.functions.ts`, `src/lib/webauthn/{register.ts,authenticate.ts}`, edits to login/signup pages, new `passkeys` table migration.
 
-**Shared helpers:**
-- `supabase/functions/_shared/cors.ts`, `_shared/lovable-ai.ts` — gateway URL, auth header, error mapping.
-- `supabase/functions/_shared/prompt-guard.ts` — port of existing `src/lib/security/prompt-guard.ts` for server-side prompt-injection screening before forwarding to the model.
+- Library: `@simplewebauthn/server` + `@simplewebauthn/browser` (both Worker-compatible).
+- DB: `passkeys (id, user_id, credential_id, public_key, counter, transports[], created_at, last_used_at, label)` with RLS `user_id = auth.uid()`. Challenges in short-TTL `webauthn_challenges` table.
+- Flows: register passkey from settings; sign in with passkey OR fall back to email/password OR email magic link; **recovery** = at least one verified email + one alternate factor required before passkeys become primary.
+- Tests: registration round-trip, login round-trip, replay-attack rejection (counter regression), challenge expiry.
 
-**Frontend:**
-- `src/lib/ai/extract-skills.ts` — typed client for the multimodal function (zod-validates response).
-- `src/components/MatchExplanation.tsx` — streams tokens into a `<p aria-live="polite">`, abortable via `AbortController`, surfaces 429/402 toasts.
-- `src/components/ImagePortfolioUpload.tsx` — file picker (jpg/png ≤ 4 MB), client-side resize to ≤ 1024 px, base64 encode; reuses existing `classifyImportError`-style enriched error UI for rejects.
-- Wire `MatchExplanation` into `opportunities.tsx` opportunity cards (collapsible "Explain match"). Wire `ImagePortfolioUpload` into `skills.tsx` next to the existing text path.
+### Phase 4 — i18n (en, sw, fr, ha)
+**Files:** `src/lib/i18n/{index.ts,detect.ts}`, `src/locales/{en,sw,fr,ha}/common.json`, language switcher in `Topbar.tsx`, edits across map + AI components.
 
-**Tests:**
-- `src/lib/ai/__tests__/extract-skills.test.ts` — mocks `fetch`, asserts request shape (tool definition), parses tool-call JSON, rejects schema violations.
-- `src/components/__tests__/MatchExplanation.test.tsx` — feeds a fake SSE stream via mocked `ReadableStream`, asserts incremental token render and abort cleanup.
-- `supabase/functions/extract-skills-multimodal/index.test.ts` — Deno test for prompt-guard rejection + 402/429 mapping.
+- Library: `i18next` + `react-i18next` (SSR-friendly; works with TanStack Start).
+- Detection: URL `?lng=` → cookie → `Accept-Language` → `en`.
+- Coverage: nav, landing, skills, opportunities (incl. map popups), AI streaming labels, error UI, auth pages. AI **prompts** also localised — system prompt switches to instruct the model to respond in the user's language.
+- Pluralisation rules included for sw/fr/ha (CLDR via i18next).
+- SEO: `<html lang>` + `hreflang` alternates emitted from each route's `head()`.
+- Tests: render snapshot per locale for landing + opportunities; switcher updates `lang` and persists.
 
-**Security hardening (carried into the AI track):**
-- All AI calls remain server-side; `LOVABLE_API_KEY` never reaches the client.
-- Per-IP rate limiting reused from `src/lib/security/rate-limit.ts` inside both edge functions.
-- Image uploads validated by mime + magic bytes (not just extension); strip EXIF before sending (client-side via `createImageBitmap` + canvas re-encode).
-- CSP header in `public/_headers` extended to allow `https://tiles.openfreemap.org` and `blob:` for the map; AI gateway already same-origin via edge function.
+### Cross-cutting
+- After each phase: run `bun run test`, `supabase--linter`, and `security--run_security_scan`. Fix any new findings before moving on.
+- Update `mem://index.md` with: "Stack = TanStack Start (no Next.js migration)", "Neo4j AuraDB for trust graph", "i18n via i18next, locales en/sw/fr/ha".
 
-## Phase 3 — UI/UX overhaul ("UNMAPPED" visual system)
+### Out of scope
+- Next.js conversion (see top note).
+- Blockchain credential anchoring on a public chain (already have `credential_anchors` table; on-chain is a separate decision).
+- Mobile apps.
 
-Adopt the dark-gold aesthetic from `talentgraph_unmapped_v2-4.html`.
-
-**Design tokens** in `src/styles.css`:
-- Surfaces `--bg-0..4` (deep navy), borders `--border-0..2`, gold `--gold`/`--gold-2`/`--gold-glow`, accents teal/coral/lavender, text `--tx-0..2`.
-- Fonts via `<link>` in `__root.tsx`: Sora (display), Space Mono (mono), DM Sans (body). Tailwind `@theme` block exposes `font-display`, `font-mono`, `font-body`.
-- Gradient + shadow tokens (`--gradient-gold`, `--shadow-elegant`).
-
-**Component refresh** (presentation-only; no logic changes):
-- `Topbar.tsx`, `Sidebar.tsx`, `AppShell.tsx`, `PageHeader.tsx`, `Footer.tsx` — restyle with new tokens; sticky topbar with backdrop blur, gold logomark.
-- `src/routes/index.tsx` — new landing hero ("UNMAPPED — find work that matches what you actually do"), 3-up feature cards, CTA to `/skills`.
-- `src/components/ui/button.tsx` — add `premium` variant using `--gradient-gold`.
-- All existing surfaces re-skinned via tokens (no per-component color literals).
-
-**Route metadata:** distinct `head()` per route (`/`, `/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`) with unique title/description/og.
-
-**Accessibility:** maintain WCAG AA contrast on dark background (verified via `oklch` lightness of `--tx-0` vs `--bg-0`); keep all existing focus rings, role attributes, and the focus-management tests we already have.
-
-## Sequencing & verification
-
-1. Phase 1 lands first (smallest, isolated route). Run `bun run test` — expect existing 200+ tests + ~6 new geo/consent tests.
-2. Phase 2 adds edge functions + AI clients. Run `bun run test` and `supabase--test_edge_functions`.
-3. Phase 3 is presentation-only; run tests once more to confirm no regressions in a11y/focus/import suites.
-
-## Out of scope (deliberately deferred)
-
-- Blockchain/credential NFT issuance, Neo4j trust graph, WebAuthn passkeys, i18next multilingual — these are in the architecture doc but each is a multi-day track of its own; happy to plan them next once these three ship.
-
-## Technical notes
-
-- MapLibre is Worker-safe; no SSR concerns because the map component is dynamically rendered behind a `useEffect` mount guard.
-- Edge functions use `verify_jwt = true` (default) so anonymous calls are blocked — frontend passes the Supabase session via `supabase.functions.invoke`.
-- No new secrets required: `LOVABLE_API_KEY` is auto-provisioned, OpenFreeMap is keyless.
+### Sequencing
+1. Phase 1 (smallest, no new infra, fully gated by existing tests).
+2. Phase 3 (passkeys — auth-critical, wants its own QA window).
+3. Phase 4 (i18n — touches many files but presentation-only).
+4. Phase 2 (Neo4j — needs new external service + secrets; lands last so failures don't block other tracks).
