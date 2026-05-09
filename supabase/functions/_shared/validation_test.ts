@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "https://deno.land/std@0.190.0/assert/mod.ts";
+import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { validateExtractSkills, validateExplain, sniffImageMime, BadRequest } from "./validation.ts";
 
 // Tiny 1x1 PNG (89 50 4E 47 0D 0A 1A 0A then IHDR...)
