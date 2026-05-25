@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-router";
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { Toaster } from "sonner";
+import { I18nProvider } from "@/components/I18nProvider";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 import appCss from "../styles.css?url";
 
@@ -115,18 +117,25 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <Toaster
-        theme="dark"
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: "oklch(0.185 0.040 263)",
-            border: "1px solid oklch(1 0 0 / 0.09)",
-            color: "oklch(0.945 0.012 86)",
-          },
-        }}
-      />
+      <I18nProvider>
+        <div className="pointer-events-none fixed right-3 top-3 z-50">
+          <div className="pointer-events-auto rounded-md border border-white/10 bg-bg-1/80 px-2 py-1 shadow-lg backdrop-blur">
+            <LanguageSwitcher />
+          </div>
+        </div>
+        <Outlet />
+        <Toaster
+          theme="dark"
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "oklch(0.185 0.040 263)",
+              border: "1px solid oklch(1 0 0 / 0.09)",
+              color: "oklch(0.945 0.012 86)",
+            },
+          }}
+        />
+      </I18nProvider>
     </QueryClientProvider>
   );
 }
