@@ -153,19 +153,24 @@ export const startPasskeyAuthentication = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { rpID } = rpConfig(data.origin);
-    const { data: userRow } = await supabaseAdmin
-      .schema("auth" as never)
-      .from("users" as never)
-      .select("id" as never)
-      .eq("email" as never, data.email)
-      .maybeSingle();
 
+    // Identifier-first: we look up passkeys by email via admin listUsers.
+    // If not found we still issue a challenge with empty allowCredentials so
+    // the response shape stays the same and we don't leak which emails are
+    // registered.
     let allowCredentials: { id: string; transports?: AuthenticatorTransport[] }[] = [];
-    if (userRow && (userRow as { id?: string }).id) {
+    const { data: usersPage } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 200,
+    });
+    const matched = usersPage?.users?.find(
+      (u) => u.email?.toLowerCase() === data.email.toLowerCase(),
+    );
+    if (matched) {
       const { data: pks } = await supabaseAdmin
         .from("passkeys")
         .select("credential_id, transports")
-        .eq("user_id", (userRow as { id: string }).id);
+        .eq("user_id", matched.id);
       allowCredentials = (pks ?? []).map((p) => ({
         id: p.credential_id,
         transports: (p.transports ?? []) as AuthenticatorTransport[],
