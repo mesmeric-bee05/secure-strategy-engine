@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrustGraphRouteImport } from './routes/trust-graph'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
@@ -26,6 +27,11 @@ const TrustGraphRoute = TrustGraphRouteImport.update({
 const SkillsRoute = SkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SecurityRoute = SecurityRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/opportunities'
     | '/readiness'
     | '/security'
+    | '/settings'
     | '/skills'
     | '/trust-graph'
     | '/credential/$id'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/opportunities'
     | '/readiness'
     | '/security'
+    | '/settings'
     | '/skills'
     | '/trust-graph'
     | '/credential/$id'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/opportunities'
     | '/readiness'
     | '/security'
+    | '/settings'
     | '/skills'
     | '/trust-graph'
     | '/credential/$id'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   OpportunitiesRoute: typeof OpportunitiesRouteWithChildren
   ReadinessRoute: typeof ReadinessRoute
   SecurityRoute: typeof SecurityRoute
+  SettingsRoute: typeof SettingsRoute
   SkillsRoute: typeof SkillsRoute
   TrustGraphRoute: typeof TrustGraphRoute
   CredentialIdRoute: typeof CredentialIdRoute
@@ -147,6 +160,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills'
       preLoaderRoute: typeof SkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/security': {
@@ -211,6 +231,7 @@ const rootRouteChildren: RootRouteChildren = {
   OpportunitiesRoute: OpportunitiesRouteWithChildren,
   ReadinessRoute: ReadinessRoute,
   SecurityRoute: SecurityRoute,
+  SettingsRoute: SettingsRoute,
   SkillsRoute: SkillsRoute,
   TrustGraphRoute: TrustGraphRoute,
   CredentialIdRoute: CredentialIdRoute,
@@ -218,3 +239,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
