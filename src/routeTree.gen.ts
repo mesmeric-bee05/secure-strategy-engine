@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrustGraphRouteImport } from './routes/trust-graph'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ReadinessRouteImport } from './routes/readiness'
@@ -17,6 +18,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OpportunitiesMapRouteImport } from './routes/opportunities.map'
 import { Route as CredentialIdRouteImport } from './routes/credential.$id'
 
+const TrustGraphRoute = TrustGraphRouteImport.update({
+  id: '/trust-graph',
+  path: '/trust-graph',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SkillsRoute = SkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
+  '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
+  '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
   '/skills': typeof SkillsRoute
+  '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/readiness'
     | '/security'
     | '/skills'
+    | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/readiness'
     | '/security'
     | '/skills'
+    | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/readiness'
     | '/security'
     | '/skills'
+    | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
   fileRoutesById: FileRoutesById
@@ -117,11 +129,19 @@ export interface RootRouteChildren {
   ReadinessRoute: typeof ReadinessRoute
   SecurityRoute: typeof SecurityRoute
   SkillsRoute: typeof SkillsRoute
+  TrustGraphRoute: typeof TrustGraphRoute
   CredentialIdRoute: typeof CredentialIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/trust-graph': {
+      id: '/trust-graph'
+      path: '/trust-graph'
+      fullPath: '/trust-graph'
+      preLoaderRoute: typeof TrustGraphRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/skills': {
       id: '/skills'
       path: '/skills'
@@ -192,8 +212,18 @@ const rootRouteChildren: RootRouteChildren = {
   ReadinessRoute: ReadinessRoute,
   SecurityRoute: SecurityRoute,
   SkillsRoute: SkillsRoute,
+  TrustGraphRoute: TrustGraphRoute,
   CredentialIdRoute: CredentialIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
