@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "language": "Language",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signUp": "Sign up"
+  },
+  "nav": {
+    "overview": "Overview",
+    "skills": "Skills",
+    "opportunities": "Opportunities",
+    "map": "Map",
+    "readiness": "Readiness",
+    "security": "Security",
+    "settings": "Settings"
+  },
+  "map": {
+    "title": "Opportunities map",
+    "subtitle": "Live geolocation of opportunities across Africa",
+    "consentTitle": "Show opportunities near me",
+    "consentBody": "We'll use your device location once. Coordinates stay on your device.",
+    "consentAccept": "Use my location",
+    "consentDecline": "No thanks",
+    "noLocation": "Location not shared"
+  },
+  "ai": {
+    "extractTitle": "Extract skills",
+    "extracting": "Analyzing your profile…",
+    "explainTitle": "Why this matches",
+    "explaining": "Reasoning…",
+    "promptLocale": "Respond in {{language}}."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "subtitle": "Sign in without a password using your device biometrics.",
+    "register": "Add a passkey",
+    "signInWithPasskey": "Sign in with passkey",
+    "fallbackPassword": "Use password instead",
+    "fallbackMagicLink": "Email me a magic link",
+    "recovery": "Lost your device? Use email + password to recover access.",
+    "registered": "Passkey added",
+    "removed": "Passkey removed",
+    "noPasskeys": "No passkeys registered yet"
+  }
+}

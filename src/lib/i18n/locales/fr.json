@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "language": "Langue",
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "signUp": "S'inscrire"
+  },
+  "nav": {
+    "overview": "Aperçu",
+    "skills": "Compétences",
+    "opportunities": "Opportunités",
+    "map": "Carte",
+    "readiness": "Préparation",
+    "security": "Sécurité",
+    "settings": "Paramètres"
+  },
+  "map": {
+    "title": "Carte des opportunités",
+    "subtitle": "Géolocalisation en direct des opportunités à travers l'Afrique",
+    "consentTitle": "Voir les opportunités près de moi",
+    "consentBody": "Nous utiliserons votre position une seule fois. Les coordonnées restent sur votre appareil.",
+    "consentAccept": "Utiliser ma position",
+    "consentDecline": "Non merci",
+    "noLocation": "Position non partagée"
+  },
+  "ai": {
+    "extractTitle": "Extraire les compétences",
+    "extracting": "Analyse de votre profil…",
+    "explainTitle": "Pourquoi ça correspond",
+    "explaining": "Raisonnement…",
+    "promptLocale": "Réponds en {{language}}."
+  },
+  "passkeys": {
+    "title": "Clés d'accès",
+    "subtitle": "Connectez-vous sans mot de passe via la biométrie de votre appareil.",
+    "register": "Ajouter une clé d'accès",
+    "signInWithPasskey": "Se connecter avec une clé",
+    "fallbackPassword": "Utiliser un mot de passe",
+    "fallbackMagicLink": "M'envoyer un lien magique",
+    "recovery": "Appareil perdu ? Utilisez email + mot de passe pour récupérer l'accès.",
+    "registered": "Clé d'accès ajoutée",
+    "removed": "Clé d'accès supprimée",
+    "noPasskeys": "Aucune clé d'accès enregistrée"
+  }
+}

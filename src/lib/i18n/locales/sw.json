@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Inapakia…",
+    "error": "Hitilafu imetokea",
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "delete": "Futa",
+    "language": "Lugha",
+    "signIn": "Ingia",
+    "signOut": "Toka",
+    "signUp": "Jisajili"
+  },
+  "nav": {
+    "overview": "Muhtasari",
+    "skills": "Ujuzi",
+    "opportunities": "Fursa",
+    "map": "Ramani",
+    "readiness": "Utayari",
+    "security": "Usalama",
+    "settings": "Mipangilio"
+  },
+  "map": {
+    "title": "Ramani ya fursa",
+    "subtitle": "Maeneo ya fursa kote Afrika",
+    "consentTitle": "Onyesha fursa karibu nami",
+    "consentBody": "Tutatumia eneo lako mara moja tu. Viwianisho vyako vinabaki kwenye kifaa chako.",
+    "consentAccept": "Tumia eneo langu",
+    "consentDecline": "Hapana, asante",
+    "noLocation": "Eneo halijashirikiwa"
+  },
+  "ai": {
+    "extractTitle": "Toa ujuzi",
+    "extracting": "Inachambua wasifu wako…",
+    "explainTitle": "Kwa nini inafaa",
+    "explaining": "Inafikiri…",
+    "promptLocale": "Jibu kwa {{language}}."
+  },
+  "passkeys": {
+    "title": "Funguo za kifaa",
+    "subtitle": "Ingia bila nenosiri kwa kutumia kifaa chako.",
+    "register": "Ongeza ufunguo",
+    "signInWithPasskey": "Ingia na ufunguo",
+    "fallbackPassword": "Tumia nenosiri badala yake",
+    "fallbackMagicLink": "Nitumie kiungo cha barua pepe",
+    "recovery": "Umepoteza kifaa? Tumia barua pepe + nenosiri kurejesha akaunti.",
+    "registered": "Ufunguo umeongezwa",
+    "removed": "Ufunguo umeondolewa",
+    "noPasskeys": "Hakuna funguo zilizosajiliwa"
+  }
+}

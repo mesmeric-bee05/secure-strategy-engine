@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Ana ɗauka…",
+    "error": "Akwai matsala",
+    "save": "Ajiye",
+    "cancel": "Soke",
+    "delete": "Share",
+    "language": "Harshe",
+    "signIn": "Shiga",
+    "signOut": "Fita",
+    "signUp": "Yi rajista"
+  },
+  "nav": {
+    "overview": "Bayyani",
+    "skills": "Ƙwarewa",
+    "opportunities": "Damarmaki",
+    "map": "Taswira",
+    "readiness": "Shirye-shirye",
+    "security": "Tsaro",
+    "settings": "Saituna"
+  },
+  "map": {
+    "title": "Taswirar damarmaki",
+    "subtitle": "Wuraren damarmaki a duk faɗin Afirka",
+    "consentTitle": "Nuna damarmaki kusa da ni",
+    "consentBody": "Za mu yi amfani da wurin ka sau ɗaya. Bayanin yana nan a na'urar ka.",
+    "consentAccept": "Yi amfani da wurina",
+    "consentDecline": "A'a, na gode",
+    "noLocation": "Ba a raba wuri ba"
+  },
+  "ai": {
+    "extractTitle": "Cire ƙwarewa",
+    "extracting": "Ana bincika bayananka…",
+    "explainTitle": "Me yasa ya dace",
+    "explaining": "Ana tunani…",
+    "promptLocale": "Amsa da {{language}}."
+  },
+  "passkeys": {
+    "title": "Maɓallan shiga",
+    "subtitle": "Shiga ba tare da kalmar sirri ba ta hanyar na'urarka.",
+    "register": "Ƙara maɓalli",
+    "signInWithPasskey": "Shiga da maɓalli",
+    "fallbackPassword": "Yi amfani da kalmar sirri",
+    "fallbackMagicLink": "Aiko mini hanyar sihiri ta imel",
+    "recovery": "Ka rasa na'urarka? Yi amfani da imel + kalmar sirri don dawowa.",
+    "registered": "An ƙara maɓalli",
+    "removed": "An cire maɓalli",
+    "noPasskeys": "Babu maɓallai da aka yi rajista"
+  }
+}
