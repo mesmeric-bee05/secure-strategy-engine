@@ -386,6 +386,45 @@ export type Database = {
         }
         Relationships: []
       }
+      passkeys: {
+        Row: {
+          backed_up: boolean
+          counter: number
+          created_at: string
+          credential_id: string
+          device_label: string | null
+          id: string
+          last_used_at: string | null
+          public_key: string
+          transports: string[]
+          user_id: string
+        }
+        Insert: {
+          backed_up?: boolean
+          counter?: number
+          created_at?: string
+          credential_id: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key: string
+          transports?: string[]
+          user_id: string
+        }
+        Update: {
+          backed_up?: boolean
+          counter?: number
+          created_at?: string
+          credential_id?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key?: string
+          transports?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       personas: {
         Row: {
           country_code: string | null
@@ -620,6 +659,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      webauthn_challenges: {
+        Row: {
+          challenge: string
+          challenge_type: string
+          created_at: string
+          email: string | null
+          expires_at: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          challenge: string
+          challenge_type: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          challenge?: string
+          challenge_type?: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
