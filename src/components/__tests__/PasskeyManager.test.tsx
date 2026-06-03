@@ -57,9 +57,9 @@ describe("PasskeyManager", () => {
   it("shows the 'no passkeys' empty state and recovery copy", async () => {
     render(<PasskeyManager />);
     await waitFor(() => expect(mockList).toHaveBeenCalled());
-    expect(screen.getByText(/No passkeys registered yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No passkeys registered yet/i)).toBeTruthy();
     // recovery + fallback copy must remain visible
-    expect(screen.getByText(/Lost your device/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lost your device/i)).toBeTruthy();
   });
 
   it("registration happy path calls all 3 steps and refreshes the list", async () => {
@@ -86,7 +86,7 @@ describe("PasskeyManager", () => {
     expect(mockBrowserStartReg).toHaveBeenCalledWith({ optionsJSON: { challenge: "ch" } });
     expect(toastSuccess).toHaveBeenCalled();
     await waitFor(() =>
-      expect(screen.getByText(/Test Browser/)).toBeInTheDocument(),
+      expect(screen.getByText(/Test Browser/)).toBeTruthy(),
     );
   });
 
@@ -112,12 +112,12 @@ describe("PasskeyManager", () => {
     mockDel.mockResolvedValue({ ok: true });
 
     render(<PasskeyManager />);
-    await waitFor(() => expect(screen.getByText("Old")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Old")).toBeTruthy());
 
     fireEvent.click(screen.getAllByRole("button", { name: /delete/i })[0]);
     await waitFor(() => expect(mockDel).toHaveBeenCalledWith({ data: { id: "p1" } }));
     await waitFor(() =>
-      expect(screen.getByText(/No passkeys registered yet/i)).toBeInTheDocument(),
+      expect(screen.getByText(/No passkeys registered yet/i)).toBeTruthy(),
     );
   });
 });
@@ -170,7 +170,7 @@ describe("PasskeySignInButton", () => {
 
   it("renders the fallback / recovery copy so users always have an out", () => {
     render(<PasskeySignInButton />);
-    expect(screen.getByText(/Use password instead/i)).toBeInTheDocument();
-    expect(screen.getByText(/Email me a magic link/i)).toBeInTheDocument();
+    expect(screen.getByText(/Use password instead/i)).toBeTruthy();
+    expect(screen.getByText(/Email me a magic link/i)).toBeTruthy();
   });
 });
