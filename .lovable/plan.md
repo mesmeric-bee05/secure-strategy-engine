@@ -1,65 +1,108 @@
-## Plan — Security hardening, Trust Graph, Passkeys, i18n
+## Goal
 
-### ⚠️ Important: Next.js conversion is NOT recommended
-This project is built on **TanStack Start v1** (Vite + Cloudflare Workers SSR). Converting to Next.js would mean:
-- Rewriting every route, server function, and the auth middleware
-- Losing the existing Worker deployment, `_headers` CSP, edge function wiring, and 200+ passing tests
-- 1–2 weeks of pure migration work with no user-visible benefit — TanStack Start **already does SSR + per-route metadata**, which is what you actually need for SEO
+Add reliable automated test coverage for two critical surfaces:
+1. **i18n** — all four locales (en, sw, fr, ha) load, key parity holds, and the React layer renders translated strings + reacts to language changes.
+2. **WebAuthn passkeys** — registration, authentication (happy path), and recovery/fallback flows behave correctly under both success and failure conditions.
 
-I recommend we **keep TanStack Start** and instead double down on its SSR + `head()` metadata (which is already in place). If you still want Next.js after seeing the rest land, we can revisit as a separate, dedicated track.
-
-The plan below assumes we **stay on TanStack Start** and ship the other four tracks in sequence.
+Tests run in the existing Vitest + jsdom setup (`vitest.config.ts`, `vitest.setup.ts`) and in the GitHub Actions workflow already wired at `.github/workflows/tests.yml`.
 
 ---
 
-### Phase 1 — AI edge function hardening (security)
-**Files:** `supabase/functions/_shared/{rate-limit.ts,validation.ts,logger.ts}`, edits to `extract-skills-multimodal/index.ts` and `match-explanation/index.ts`, new tests.
+## Scope
 
-- **Rate limiting**: per-IP + per-user sliding window via existing `rl_check` Postgres function (already deployed). Buckets: `ai:extract` (10/min), `ai:explain` (30/min). Fail-closed on infra error.
-- **Request validation**: zod schemas for both function bodies — strict size caps (image ≤ 4 MB base64, text ≤ 8 KB persona, ≤ 2 KB opportunity), allow-listed mime types with magic-byte recheck server-side.
-- **Structured logging**: JSON log lines `{ts, fn, requestId, userId?, status, latencyMs, model, tokensIn?, tokensOut?, errorCode?}` to stdout (picked up by Cloud logs). New `_shared/logger.ts` with `logEvent()`.
-- **Alerts**: severity tag (`info|warn|error`); 5xx and 429-from-upstream emit `error` lines. Document how to wire to a log drain later (no infra change now).
-- **Tests**: Deno tests for rate-limit decision, schema rejection, oversized image rejection, mime spoofing rejection.
+### 1. i18n tests — `src/lib/i18n/__tests__/`
 
-### Phase 2 — Neo4j trust graph
-**Files:** `supabase/functions/trust-graph-sync/index.ts` (cron-style), `src/lib/trust-graph/{client.ts,queries.ts}`, `src/server/trust-graph.functions.ts`, `src/routes/_authenticated/trust-graph.tsx`, tests.
+**`locales.test.ts`** (pure, no React)
+- Import all four JSON locales directly.
+- Assert each locale is non-empty and parses as an object.
+- Compute the full set of dotted key paths from `en.json` (source of truth) and assert `sw`, `fr`, `ha` contain the **exact same key set** — no missing keys, no extra keys. Fail with a readable diff listing offending keys per locale.
+- Assert no translation value is an empty string or still equal to the English value for a sample of user-visible keys (e.g. `nav.*`, `passkeys.*`, `map.*`) — catches "forgot to translate".
+- Assert `SUPPORTED_LANGUAGES` codes match the locale files present.
 
-- **Hosting**: Neo4j AuraDB Free (5 GB, no card). User adds three secrets: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` (will request via `add_secret` at start of phase).
-- **Schema**: `(:User)-[:HAS_SKILL {weight}]->(:Skill)`, `(:Skill)-[:EVIDENCED_BY]->(:Attestation)`, `(:Opportunity)-[:REQUIRES]->(:Skill)`, `(:Opportunity)-[:LOCATED_IN]->(:Place)`.
-- **Sync**: server fn `syncTrustGraph()` reads from Postgres (skills/attestations/opportunities) and `MERGE`s into Neo4j. Triggered manually + on attestation insert.
-- **Read paths**: server fn `findTrustedMatches(userId)` runs Cypher path query: `MATCH (u)-[:HAS_SKILL]->(s)<-[:REQUIRES]-(o) WHERE …` returning ranked opportunities w/ trust score.
-- **UI**: new `/trust-graph` route — small force-directed view (Cytoscape.js, lightweight) showing user's first/second-degree skill graph. Read-only.
-- **Security**: Neo4j calls server-side only; never expose Bolt creds; Cypher uses parameter binding (no string concat).
+**`i18n.runtime.test.tsx`** (React)
+- Render a tiny probe component using `useTranslation()` inside the existing `I18nProvider`.
+- For each supported language: call `i18n.changeLanguage(code)`, assert the probe renders the expected translated string for a stable key (e.g. `nav.settings`), and assert `document.documentElement.lang` is updated by `I18nProvider`.
+- Assert fallback: requesting an unknown language falls back to `en`.
+- Assert interpolation works (`ai.promptLocale` with `{{language}}`).
 
-### Phase 3 — WebAuthn passkeys
-**Files:** `src/server/webauthn.functions.ts`, `src/lib/webauthn/{register.ts,authenticate.ts}`, edits to login/signup pages, new `passkeys` table migration.
+**`LanguageSwitcher.test.tsx`**
+- Render `LanguageSwitcher`, simulate selecting each language, assert `i18n.language` updates and the chosen label is reflected in the DOM.
 
-- Library: `@simplewebauthn/server` + `@simplewebauthn/browser` (both Worker-compatible).
-- DB: `passkeys (id, user_id, credential_id, public_key, counter, transports[], created_at, last_used_at, label)` with RLS `user_id = auth.uid()`. Challenges in short-TTL `webauthn_challenges` table.
-- Flows: register passkey from settings; sign in with passkey OR fall back to email/password OR email magic link; **recovery** = at least one verified email + one alternate factor required before passkeys become primary.
-- Tests: registration round-trip, login round-trip, replay-attack rejection (counter regression), challenge expiry.
+### 2. WebAuthn passkey tests
 
-### Phase 4 — i18n (en, sw, fr, ha)
-**Files:** `src/lib/i18n/{index.ts,detect.ts}`, `src/locales/{en,sw,fr,ha}/common.json`, language switcher in `Topbar.tsx`, edits across map + AI components.
+WebAuthn cannot be exercised end-to-end in jsdom (no real authenticator). We split coverage into three layers — unit, server-function, and a mocked browser flow — which together verify every branch users hit in production.
 
-- Library: `i18next` + `react-i18next` (SSR-friendly; works with TanStack Start).
-- Detection: URL `?lng=` → cookie → `Accept-Language` → `en`.
-- Coverage: nav, landing, skills, opportunities (incl. map popups), AI streaming labels, error UI, auth pages. AI **prompts** also localised — system prompt switches to instruct the model to respond in the user's language.
-- Pluralisation rules included for sw/fr/ha (CLDR via i18next).
-- SEO: `<html lang>` + `hreflang` alternates emitted from each route's `head()`.
-- Tests: render snapshot per locale for landing + opportunities; switcher updates `lang` and persists.
+**a. Server-function unit tests — `src/lib/passkeys/__tests__/passkeys.functions.test.ts`**
 
-### Cross-cutting
-- After each phase: run `bun run test`, `supabase--linter`, and `security--run_security_scan`. Fix any new findings before moving on.
-- Update `mem://index.md` with: "Stack = TanStack Start (no Next.js migration)", "Neo4j AuraDB for trust graph", "i18n via i18next, locales en/sw/fr/ha".
+Mock `@simplewebauthn/server` and `supabaseAdmin` (the auth-middleware-injected client) to test our wrapper logic in isolation:
 
-### Out of scope
-- Next.js conversion (see top note).
-- Blockchain credential anchoring on a public chain (already have `credential_anchors` table; on-chain is a separate decision).
-- Mobile apps.
+- `startPasskeyRegistration`
+  - Rejects invalid `origin` (zod regex).
+  - Calls `generateRegistrationOptions` with the right `rpID`/`rpName` derived from origin.
+  - Passes existing credentials as `excludeCredentials`.
+  - Persists a `registration` row in `webauthn_challenges`.
+- `finishPasskeyRegistration`
+  - Throws "Challenge expired" when no challenge row / past `expires_at`.
+  - Throws on `verifyRegistrationResponse` failure (`verified: false`).
+  - On success: inserts a `passkeys` row with base64 public key, counter, transports, `backed_up`, and deletes the consumed challenge.
+- `listPasskeys` / `deletePasskey`
+  - Scopes queries to `context.userId`; `delete` enforces both `id` and `user_id` filters (no IDOR).
+- `startPasskeyAuthentication`
+  - Returns identical option shape whether or not the email exists (no user-enumeration leak: assert `allowCredentials` is `[]` for unknown emails, options object still returned).
+  - Persists an `authentication` challenge keyed by email.
+- `finishPasskeyAuthentication`
+  - "Challenge expired" when row missing/stale.
+  - "Unknown passkey" when credential id not found.
+  - "Passkey signature did not verify" when verification fails.
+  - On success: updates counter + `last_used_at`, deletes the challenge, calls `auth.admin.generateLink({ type: 'magiclink' })`, and returns `{ actionLink }`.
+  - Throws when `generateLink` fails (recovery path — caller sees readable error, no silent session mint).
 
-### Sequencing
-1. Phase 1 (smallest, no new infra, fully gated by existing tests).
-2. Phase 3 (passkeys — auth-critical, wants its own QA window).
-3. Phase 4 (i18n — touches many files but presentation-only).
-4. Phase 2 (Neo4j — needs new external service + secrets; lands last so failures don't block other tracks).
+**b. UI flow tests — `src/components/__tests__/PasskeyManager.test.tsx`**
+
+Mock `@simplewebauthn/browser` (`startRegistration`, `startAuthentication`) and the server functions exposed via `useServerFn`. Cover:
+
+- **Registration happy path**: click "Add a passkey" → calls `startPasskeyRegistration`, then `startRegistration` (browser), then `finishPasskeyRegistration`, then refreshes the list and shows the new device label.
+- **Registration error path**: simulate `startRegistration` throwing (user-cancelled / not allowed) → toast.error shown, no row added, button re-enabled.
+- **List + delete**: renders existing passkeys from `listPasskeys`, delete button calls `deletePasskey` and the row disappears.
+- **`PasskeySignInButton` happy path**: enter email → `startPasskeyAuthentication` → `startAuthentication` → `finishPasskeyAuthentication` returns `actionLink` → assert `window.location.href` is set to that link (via a `window.location` setter mock).
+- **Sign-in error path**: server throws "Unknown passkey" → toast.error shown, no redirect.
+- **Recovery / fallback messaging**: assert the component renders the `passkeys.fallbackPassword`, `passkeys.fallbackMagicLink`, and `passkeys.recovery` strings — guarantees the documented recovery paths (password + email magic link) remain visible if all passkeys are lost.
+
+**c. Recovery integration test — `src/lib/passkeys/__tests__/recovery.test.ts`**
+
+Pure unit test that documents and locks in the recovery contract:
+- When a user has zero passkeys, `listPasskeys` returns `{ passkeys: [] }` and the UI surfaces the "no passkeys" + recovery copy (covered in PasskeyManager test above; this test asserts the data contract).
+- When `finishPasskeyAuthentication`'s `generateLink` errors, the function throws — confirming the client must surface the error and the user can fall back to password / Supabase `resetPasswordForEmail` (the actual reset flow lives in Supabase Auth and is not re-tested).
+
+### 3. Shared test plumbing
+
+- Add `vi.mock` factories for `@/integrations/supabase/client.server` and `@/integrations/supabase/auth-middleware` reused across server-fn tests (in `src/test/mocks/supabase.ts`).
+- Add a `renderWithI18n` helper in `src/test/utils.tsx` that mounts components inside `I18nProvider` and resets language between tests.
+- Ensure `vitest.setup.ts` initializes i18n once and resets to `en` in an `afterEach`.
+
+### 4. CI
+
+- Confirm `.github/workflows/tests.yml` runs `bunx vitest run` (or equivalent); add coverage thresholds only if already configured — otherwise leave as-is to avoid scope creep.
+
+---
+
+## Out of scope (explicit)
+
+- No changes to production i18n, passkey, or auth code — tests must pass against the current implementation. If a genuine bug is uncovered while writing tests, surface it back with a follow-up plan rather than silently editing prod code.
+- No Neo4j / edge-function tests.
+- No real WebAuthn hardware/virtual-authenticator harness (e.g. `@simplewebauthn/server`'s test virtual authenticator). Can be added in a later phase if you want end-to-end signature verification against real key material.
+
+---
+
+## Deliverables checklist
+
+- [ ] `src/lib/i18n/__tests__/locales.test.ts`
+- [ ] `src/lib/i18n/__tests__/i18n.runtime.test.tsx`
+- [ ] `src/components/__tests__/LanguageSwitcher.test.tsx`
+- [ ] `src/lib/passkeys/__tests__/passkeys.functions.test.ts`
+- [ ] `src/lib/passkeys/__tests__/recovery.test.ts`
+- [ ] `src/components/__tests__/PasskeyManager.test.tsx`
+- [ ] `src/test/mocks/supabase.ts`, `src/test/utils.tsx`
+- [ ] All tests green under `bunx vitest run`
+
+Confirm to proceed and I'll implement these in build mode.
