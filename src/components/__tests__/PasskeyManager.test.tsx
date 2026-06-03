@@ -7,6 +7,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+// Initialise i18n so the component renders translated strings, not raw keys.
+import "@/lib/i18n";
 
 // Mocks must be declared before importing the component.
 vi.mock("@tanstack/react-start", () => ({
