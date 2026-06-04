@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:i18n:strict": "vitest run src/lib/i18n/__tests__/locales.strict.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
