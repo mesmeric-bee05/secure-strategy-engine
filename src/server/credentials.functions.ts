@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { getSupabasePublic } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { CredentialPayloadSchema, type CredentialPayload } from "@/lib/credentials";
 
 const CredentialIdInput = z.object({
