@@ -38,7 +38,7 @@ export interface PublicCredentialDTO {
 export const getCredentialById = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => CredentialIdInput.parse(input))
   .handler(async ({ data }): Promise<PublicCredentialDTO | null> => {
-    const sb = getSupabasePublic();
+    const sb = getSupabaseAdmin();
 
     const { data: row, error } = await sb
       .from("credential_anchors")
