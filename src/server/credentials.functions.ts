@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { getSupabasePublic } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { CredentialPayloadSchema, type CredentialPayload } from "@/lib/credentials";
 
 const CredentialIdInput = z.object({
@@ -38,7 +38,7 @@ export interface PublicCredentialDTO {
 export const getCredentialById = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => CredentialIdInput.parse(input))
   .handler(async ({ data }): Promise<PublicCredentialDTO | null> => {
-    const sb = getSupabasePublic();
+    const sb = getSupabaseAdmin();
 
     const { data: row, error } = await sb
       .from("credential_anchors")
