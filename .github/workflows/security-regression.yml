@@ -1,0 +1,31 @@
+name: security-regression
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "src/integrations/supabase/**"
+      - "tests/security/**"
+      - ".github/workflows/security-regression.yml"
+  schedule:
+    - cron: "17 6 * * *"
+
+jobs:
+  rls-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run RLS / EXECUTE invariant tests
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: bunx vitest run tests/security/rls.invariants.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rls-invariant-report
+          path: vitest-report

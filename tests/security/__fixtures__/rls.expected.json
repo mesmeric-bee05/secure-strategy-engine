@@ -1,0 +1,19 @@
+{
+  "tables": {
+    "profiles": ["profiles_authenticated_read", "profiles_self_insert", "profiles_self_update"],
+    "attestations": ["attestations_read", "attestations_no_write"],
+    "credential_anchors": ["credentials_owner_read", "credentials_no_write"],
+    "audit_log": ["audit_admin_read", "audit_log_no_write"],
+    "fairness_audits": ["fairness_admin_read", "fairness_audits_no_write"],
+    "rate_limits": ["rate_limits_no_access", "rate_limits_no_write"]
+  },
+  "function_grants": {
+    "no_anon_or_authenticated": [
+      "issue_credential",
+      "rl_check",
+      "handle_new_user",
+      "set_updated_at"
+    ],
+    "authenticated_only": ["has_role", "submit_attestation"]
+  }
+}
