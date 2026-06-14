@@ -8,6 +8,7 @@ const NAV = [
   { to: "/readiness", label: "AI Readiness", num: "02" },
   { to: "/opportunities", label: "Opportunities", num: "03" },
   { to: "/security", label: "Security", num: "04" },
+  { to: "/dashboard", label: "Build", num: "05" },
 ] as const;
 
 export function Topbar() {
