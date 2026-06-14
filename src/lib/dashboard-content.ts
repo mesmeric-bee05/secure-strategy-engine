@@ -176,7 +176,7 @@ export const FEATURES: Feature[] = [
   { num: 1, title: "Multimodal skill portfolio builder", desc: "Drop images, text, or paste links. AI extracts structured skills mapped to ISCO-08.", route: "/skills", status: "shipped" },
   { num: 2, title: "AI adaptive skill assessment", desc: "Generates custom challenges for skills without portfolio evidence.", route: "/readiness", status: "in-progress" },
   { num: 3, title: "Cryptographic peer attestation", desc: "Invite past employers / teachers to attest. ECDSA-signed, three-of-N to verify.", route: "/trust-graph", status: "in-progress" },
-  { num: 4, title: "Verifiable credential link", desc: "Each verified skill gets a sharable verifier route. Curated DTO, no PII leak.", route: "/security", status: "shipped" }, },
+  { num: 4, title: "Verifiable credential link", desc: "Each verified skill gets a sharable verifier route. Curated DTO, no PII leak.", route: "/security", status: "shipped" },
   { num: 5, title: "Semantic opportunity matching", desc: "pgvector cosine similarity, sub-200ms top-K, re-ranked by salary + location.", route: "/opportunities", status: "shipped" },
   { num: 6, title: "AI career pathway planner", desc: "Identifies skill gaps for a target opportunity and proposes a learning roadmap.", route: "/readiness", status: "shipped" },
   { num: 7, title: "Offline-first PWA shell", desc: "Local-first drafts, restored banner, error boundaries on every route.", status: "in-progress" },
