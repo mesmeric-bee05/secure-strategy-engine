@@ -1,194 +1,99 @@
-# Security, Test, and CI Hardening Plan
+## Goal
 
-Work is split into 8 tracks. Each track is independently shippable; tracks 1–4 are test/CI only, 5–8 touch backend/security.
+Three coordinated workstreams driven by your uploads:
 
----
+1. **Redesign** existing app surfaces to match the UNMAPPED v2 prototype's visual system.
+2. **Build** the master phases/tech/security dashboard from `talentgraph_master_dashboard.html` as an in-app route.
+3. **Extract** the architecture + bash docs into a structured roadmap (`docs/roadmap/`).
 
-## 1. E2E locale assertions for map + AI (no stale strings)
-
-**File:** `tests/e2e/i18n-map-ai.spec.ts`
-
-For each locale (`en`, `sw`, `fr`, `ha`):
-- Visit `/opportunities/map`, switch locale, assert:
-  - `<html lang>` matches.
-  - Visible legend/filter/marker-popup labels equal locale anchor strings (loaded from `src/lib/i18n/locales/<locale>.json` at test time — no hard-coded strings).
-  - Open a marker popup, confirm dynamic labels (e.g. "Distance", "Skills match") use new locale.
-- Visit a page that renders the AI match-explanation panel; trigger an explanation (mock the AI server fn via Playwright `page.route` to return a deterministic structured response), confirm static chrome (headings, "Why this match", citation footer) is translated.
-- **Anti-stale-cache assertions**: navigate away → back, hard-reload (`page.reload()`), and `page.goto` with `waitUntil: "networkidle"`; re-assert all anchor strings. Fail if any English fallback leaks.
-- Use a helper `assertNoStringFromOtherLocale(page, currentLocale)` that scans `body.innerText` for known unique substrings from the other 3 locales and fails on match.
+Scope is presentation + content. No backend, RLS, auth, or server-fn refactors. Existing test suite (256 passing) stays green.
 
 ---
 
-## 2. WebAuthn retry + network-interruption E2E
+## Track 1 — UNMAPPED v2 design system
 
-**File:** `tests/e2e/passkey-retry.spec.ts`
+Source of truth: `talentgraph_unmapped_v2-5.html` `:root` tokens + component CSS.
 
-Extend `tests/e2e/_helpers/webauthn.ts` with `simulateAuthenticatorFailure()` (CDP `WebAuthn.setUserVerified=false`, then re-enable) and `withOfflineWindow(page, fn)`.
+**Tokens → `src/styles.css` (@theme)**
+- Surfaces: `--bg-0` `#060B16` → `--bg-4` `#1A2540`; borders 0/1/2.
+- Accents: `--gold` `#E8A838` + `--gold-2` `#C88228`, `--teal` `#2DD4BF`, `--coral` `#F87171`, `--lavender` `#A78BFA`, `--emerald` `#34D399`, `--sky` `#38BDF8`.
+- Text: `--tx-0` `#EDE8E0` / `--tx-1` `#8B9DC0` / `--tx-2` `#4A5578`.
+- Radii: 4/8/12/16/20/24. Soft-glow shadows on gold/teal cards.
+- Map shadcn semantic tokens (`--background`, `--card`, `--primary`, `--border`, `--muted`, `--accent`, etc.) onto the new palette via `@theme inline` so all existing components recolor without rewrites.
 
-Scenarios (Playwright `test.describe.serial`, `retries: 2`):
-1. Registration with one transient authenticator failure → retry succeeds, session established (assert Supabase `getSession()` returns a user).
-2. Authentication with `page.context().setOffline(true)` during `navigator.credentials.get()` finish step → restore network → retry → session established.
-3. Three consecutive auth failures → UI surfaces fallback CTA (`data-testid="passkey-fallback-cta"`) and recovery email link path is reachable.
-4. Mid-flow tab reload during challenge → fresh challenge issued, no "Challenge expired" leak in console.
-5. Run scenarios 1–3 in a `for (i = 0; i < 5; i++)` loop in CI nightly job to detect flake.
+**Fonts — `src/routes/__root.tsx` `head()`**
+- Add `<link>` for Sora (display), Space Mono (mono), DM Sans (body). No CSS `@import` of remote URLs.
+- Define `--font-display`, `--font-mono`, `--font-body` in `@theme`. Apply Sora to `h1–h3`, DM Sans to body, Space Mono to numeric/metric runs.
 
----
+**Global chrome**
+- Body background: layered radial gradients (gold/teal/lavender at 5/4/3% opacity) over `--bg-0`, plus a fixed 48px grid pattern at 1.5% opacity (matches the prototype's `body::before` + `.gridpat`).
+- Topbar: 52px, blurred `rgba(6,11,22,.92)`, gold gradient logo mark + Sora wordmark + "Unmapped" uppercase tag.
+- Sidebar: 256px, `bg-1` panel, grouped sections with uppercase 9px labels.
+- Reusable primitives in `src/components/ui-tg/`: `EcoStrip`, `StatCard`, `SectionHeader`, `PersonaCard`, `BadgeGold/Teal/Coral`, `CardGlow`, `PageEyebrow`.
 
-## 3. Visual regression across locales
+**Pages redesigned in place** (markup/structure stays; classes swap to new tokens)
+- AppShell / Topbar / Sidebar / Footer
+- `/` (index hero + eco-strip)
+- `/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`, `/settings`, `/trust-graph`, `/credential/$id`
+- LanguageSwitcher, PasskeyManager, MatchExplanation, OpportunitiesMap legend/popups, CitationsPanel, RestoredBanner, LastErrorPanel
 
-**Tooling:** Playwright built-in `toHaveScreenshot()` (no extra dep).
+No business-logic edits in those files — only className + small wrapper changes.
 
-**File:** `tests/e2e/visual.spec.ts`
-
-Matrix: locales `[en, sw, fr, ha]` × pages `[/, /opportunities, /opportunities/map, /skills, /trust-graph, /settings, /security, /readiness]` × viewports `[mobile 390×844, desktop 1280×800]`.
-
-For each cell:
-- `await page.evaluate(() => document.fonts.ready)` and disable animations via `prefers-reduced-motion` emulation + a `*{animation:none!important;transition:none!important}` injected style.
-- Mask volatile regions: timestamps, map tile canvas, AI streaming areas — pass `mask: [page.locator('[data-volatile]')]`.
-- Baseline snapshots stored in `tests/e2e/__screenshots__/`; commit baselines from CI on first run via workflow_dispatch input `update_snapshots=true`.
-- Pixel diff threshold: `maxDiffPixelRatio: 0.02`.
-
-Output uploaded as a CI artifact (see Track 4).
-
----
-
-## 4. CI reports + artifacts
-
-**File:** `.github/workflows/tests.yml`
-
-- Playwright: `reporter: [['html', { outputFolder: 'playwright-report' }], ['list'], ['github']]` in `playwright.config.ts`.
-- Vitest: add `--reporter=default --reporter=html --outputFile=vitest-report/index.html` to the unit/i18n-strict scripts in `package.json`.
-- New CI steps (always run, even on failure):
-  ```
-  - uses: actions/upload-artifact@v4
-    if: always()
-    with:
-      name: playwright-report-${{ matrix.shard }}
-      path: playwright-report
-      retention-days: 14
-  - uses: actions/upload-artifact@v4
-    if: always()
-    with:
-      name: visual-diffs
-      path: test-results
-  - uses: actions/upload-artifact@v4
-    if: always()
-    with:
-      name: vitest-report
-      path: vitest-report
-  ```
-- PR comment with report download link via `dawidd6/action-download-artifact` summary step.
+**Visual regression baselines**
+- `tests/e2e/visual.spec.ts` snapshots will need regeneration once. Plan calls it out so CI failure on first run is expected; baselines updated in the same commit.
 
 ---
 
-## 5. Move `pgvector` out of `public` schema
+## Track 2 — Master build dashboard route
 
-Migration `move_pgvector_to_extensions_schema.sql`:
+New route: `src/routes/dashboard.tsx` → `/dashboard` (public, SSR on, head metadata set).
 
-```sql
-CREATE SCHEMA IF NOT EXISTS extensions;
-GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
-ALTER EXTENSION vector SET SCHEMA extensions;
--- Postgres search_path for API roles so unqualified vector ops keep working
-ALTER ROLE anon         SET search_path = public, extensions;
-ALTER ROLE authenticated SET search_path = public, extensions;
-ALTER ROLE service_role  SET search_path = public, extensions;
-```
+Ports the 5 tabs from `talentgraph_master_dashboard.html`:
+- **Phases** — collapsible phase cards (Discovery, Architecture, AI Pipeline, Security, Launch) with time chips and bullet body.
+- **Tech Stack** — grouped badge grid (frontend/backend/AI/data/infra/blockchain) using badge color variants.
+- **Features** — 6 feature cards mapped to existing routes (`/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`, `/credential/$id`).
+- **Security** — checklist with status icons; pulls live state from existing `tests/security/__fixtures__/rls.expected.json` for the RLS row count, otherwise static.
+- **Status** — 4-up stat grid (phases done, tests passing, locales shipped, scan findings open).
 
-**Risk:** any table column typed `vector(...)` keeps its type (operator class is by OID, not name); but stored generated columns or function bodies that reference unqualified `vector` may break. Pre-migration audit:
-```sql
-SELECT n.nspname, p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-WHERE p.prosrc ILIKE '%vector%' AND n.nspname='public';
-```
-If any custom function references unqualified vector ops, qualify with `extensions.` before the schema move.
-
-**Validation:**
-- Re-run Supabase linter; `SUPA_extension_in_public` must clear.
-- E2E smoke: pages that touch embedding-backed reads (skills search, match explanation) load without error.
-- New Vitest: `src/lib/__tests__/pgvector-schema.test.ts` queries `pg_extension` via a read-only server fn and asserts `extnamespace = 'extensions'`.
-
-If the migration cannot complete (managed Postgres restriction), capture the exact error, revert, and document the limitation in security memory — do not silently leave the warning unmarked.
+Implementation:
+- Pure React component using shadcn `Tabs`, `Card`, `Badge`, `Collapsible`.
+- No new dependencies. No server fn — fully static content lives in `src/lib/dashboard-content.ts` (typed, i18n-keyed for the 4 supported locales).
+- Add nav entry to Sidebar between Settings and Security with a "Build" badge.
+- `head()`: title "Build Dashboard — TalentGraph Africa", meta description, og:title/description.
 
 ---
 
-## 6. Harden `has_role` + `submit_attestation`
+## Track 3 — Architecture roadmap extraction
 
-### `has_role`
-Already SECURITY DEFINER, STABLE, `search_path = public`. Add:
-- Explicit `RAISE EXCEPTION WHEN _user_id IS NULL OR _role IS NULL` (currently returns false silently — masks bugs).
-- New audit on **admin-role checks only** (avoid logging every authenticated read): a wrapper `assert_admin()` SECURITY DEFINER that calls `has_role(auth.uid(), 'admin')` and `INSERT INTO audit_log` on denial. Use in any server fn that performs admin actions.
+Output: `docs/roadmap/` (markdown only, no code execution).
 
-### `submit_attestation`
-Add inside the function body, before insert:
-- Rate limit: `PERFORM rl_check('attestation:submit', auth.uid()::text, 10, 3600)`; raise on false.
-- Reject duplicates: `IF EXISTS (SELECT 1 FROM attestations WHERE attester_id=auth.uid() AND skill_id=_skill_id) THEN RAISE EXCEPTION 'duplicate attestation';`
-- Verify `_attester_pubkey`/`_ecdsa_signature`/`_payload_hash` are non-empty and length-bounded (≤512 chars).
-- Audit log every call (success + failure) with `action='attestation_submit'`, metadata `{skill_id, relationship, outcome}` — no PII.
+Files:
+- `00-overview.md` — Vision + system diagram description from `Now here is the complete system architecture.docx` p.1–2.
+- `01-data-model.md` — Tables (users, skills, portfolio_items, attestations, opportunities, audit_log) with column lists transcribed from pages 3–4. Cross-reference current Supabase schema, flag gaps.
+- `02-ai-pipeline.md` — Skill extraction + composite scoring + readiness coaching (pages 5–11). Mapped to existing `src/lib/ai/extract-skills.ts` and `supabase/functions/extract-skills-multimodal`.
+- `03-trust-and-credentials.md` — Attestation engine, ECDSA, soulbound NFT (pages 12–15).
+- `04-security-middleware.md` — JWT rotation, prompt-injection patterns, CSP/HSTS (pages 16–19). Cross-reference `src/lib/security/*`.
+- `05-fairness-audits.md` — Group approval deviation logic (pages 23–24, 31–32). Cross-reference `fairness_audits` table.
+- `06-roadmap.md` — Phase 5 / Phase 8 plan (pages 30–33) merged with the dashboard's phase definitions so both stay in sync.
+- `README.md` — index + status table (implemented / partial / not started).
 
-### Tests
-- `src/lib/__tests__/has_role.test.ts`: null inputs raise; non-admin call returns false; admin call returns true; assert_admin denial writes audit row.
-- `src/lib/__tests__/submit_attestation.test.ts`: self-attestation rejected; duplicate rejected; rate-limit ceiling; oversized signature rejected; happy path inserts row + promotes skill at weight ≥ 2.5; audit row present for each path.
-- Run via Vitest using a service-role client + test user fixtures; teardown deletes attestation/audit rows by `metadata->>test_run_id`.
+Each file ends with a "Cross-references" block listing the relevant project files. The `bash-3.docx` is the prototype HTML source for Track 1 — referenced in `00-overview.md`, not copied wholesale.
 
 ---
-
-## 7. Re-run all security scans + prioritized findings list
-
-Sequence (build mode):
-1. `security--run_security_scan` (Supabase Lov + Supabase linter).
-2. `supabase--linter` standalone for fresh view.
-3. `security--get_scan_results` to ingest connector scans (Wiz). If no Wiz findings are returned, report that explicitly — don't fabricate.
-4. Produce `docs/security/findings-<date>.md` with table: `id | scanner | severity | resource | status | next action | owner`. Sort by severity then resource sensitivity. Mark deltas vs prior accepted-risk memory.
-5. Update `security memory` only if posture changed (e.g., pgvector moved → drop that accepted risk).
-
----
-
-## 8. CI security regression gates
-
-**File:** `.github/workflows/security-regression.yml` (nightly + on PR touching `supabase/migrations/**` or `src/integrations/supabase/**`).
-
-Steps:
-1. **RLS invariant test** — `tests/security/rls.invariants.test.ts` (Vitest, service-role client):
-   - Snapshot expected policy set as JSON fixture (`tests/security/__fixtures__/rls.expected.json`):
-     ```json
-     {
-       "profiles":          ["profiles_authenticated_read","profiles_self_insert","profiles_self_update"],
-       "attestations":      ["attestations_read","attestations_no_write"],
-       "credential_anchors":["credentials_owner_read","credentials_no_write"],
-       "audit_log":         ["audit_admin_read","audit_log_no_write"],
-       "fairness_audits":   ["fairness_admin_read","fairness_audits_no_write"],
-       "rate_limits":       ["rate_limits_no_access","rate_limits_no_write"]
-     }
-     ```
-   - Query `pg_policies` for each table; fail if set differs (added, removed, renamed).
-   - Also assert: anon SELECT against each table returns 0 rows (or permission error); authenticated SELECT respects scoping (uses two seeded test users, asserts user A cannot read user B's credential).
-2. **EXECUTE-grant invariant**: query `information_schema.role_routine_grants` for `issue_credential, rl_check, handle_new_user, set_updated_at`; assert no grant to anon/authenticated. For `has_role, submit_attestation` assert authenticated only.
-3. **Scan-delta gate**: store last known findings hash in `tests/security/__fixtures__/findings-baseline.json`. Job re-runs scans, computes a deterministic hash of `{scanner, id, internal_id, level}` set, fails if hash differs. Updating baseline requires explicit PR edit (review forcing function).
-4. Add the new job to required-checks for `main`.
-
----
-
-## Technical sequencing
-
-```text
-Week 1
-  Track 1, 2, 3 (tests) and Track 4 (CI plumbing) in parallel
-Week 1 end
-  Track 7 (re-scan + report) — surfaces any new regressions before backend work
-Week 2
-  Track 5 (pgvector) → Track 8 (regression gates with new baseline)
-Week 2 end
-  Track 6 (function hardening) — depends on audit_log writes already locked down
-```
 
 ## Out of scope
 
-- Replacing pgvector with a different vector backend.
-- Real hardware WebAuthn authenticators (CDP virtual authenticator only).
-- Load/penetration testing — covered separately.
-- Cross-browser visual baselines (Chromium only; Firefox/WebKit deferred).
-- Mobile native passkey platform-authenticator tests (browser virtual authenticator only).
+- New backend tables, RLS changes, edge functions, server-fn rewrites.
+- Replacing the map/AI provider or the WebAuthn flow.
+- Real blockchain integration (soulbound NFT stays in roadmap docs only).
+- Hero illustrations / generative imagery (token palette + gradients only).
+- Light theme (UNMAPPED is dark-only).
 
-## Out-of-scope guardrails
+## Verification
 
-No production code refactors beyond what Tracks 5 and 6 require. No UI copy changes. No new locales. No edge-function migration of existing server fns.
+- `bun run test` — all 256 existing tests still pass; locale strict tests still gate.
+- `bunx playwright test visual.spec.ts --update-snapshots` once, committed.
+- Manual smoke in preview: each route renders with new chrome; LanguageSwitcher still cycles all 4 locales; `/dashboard` tabs switch without console errors.
+- `supabase--linter` unchanged (no DB changes).
+
+Ready to switch to build mode whenever you are.
