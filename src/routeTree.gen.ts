@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OpportunitiesMapRouteImport } from './routes/opportunities.map'
 import { Route as CredentialIdRouteImport } from './routes/credential.$id'
@@ -49,6 +50,11 @@ const OpportunitiesRoute = OpportunitiesRouteImport.update({
   path: '/opportunities',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,6 +73,7 @@ const CredentialIdRoute = CredentialIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
   '/security': typeof SecurityRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dashboard'
     | '/opportunities'
     | '/readiness'
     | '/security'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dashboard'
     | '/opportunities'
     | '/readiness'
     | '/security'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/dashboard'
     | '/opportunities'
     | '/readiness'
     | '/security'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   OpportunitiesRoute: typeof OpportunitiesRouteWithChildren
   ReadinessRoute: typeof ReadinessRoute
   SecurityRoute: typeof SecurityRoute
@@ -190,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OpportunitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -228,6 +248,7 @@ const OpportunitiesRouteWithChildren = OpportunitiesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   OpportunitiesRoute: OpportunitiesRouteWithChildren,
   ReadinessRoute: ReadinessRoute,
   SecurityRoute: SecurityRoute,
