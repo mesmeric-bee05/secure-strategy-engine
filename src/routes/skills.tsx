@@ -29,8 +29,8 @@ import { SkillsPrivacyCard } from "@/components/SkillsPrivacyCard";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useDebouncedLocalStorage, type PersistStatus } from "@/hooks/useDebouncedLocalStorage";
 import { useSkillsHotkeys } from "@/hooks/useSkillsHotkeys";
-import { extractSkills, listPersonas } from "@/server/skills.functions";
-import { getCitations } from "@/server/citations.functions";
+import { extractSkills, listPersonas } from "@/lib/server-fns/skills.functions";
+import { getCitations } from "@/lib/server-fns/citations.functions";
 import type { ExtractedSkillT } from "@/lib/schemas";
 import {
   DRAFT_MAP_KEY,

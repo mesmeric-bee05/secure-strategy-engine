@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
-import { getCredentialById } from "@/server/credentials.functions";
+import { getCredentialById } from "@/lib/server-fns/credentials.functions";
 import {
   deriveVerificationState,
   formatIssuedAt,

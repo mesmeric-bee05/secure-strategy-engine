@@ -8,10 +8,10 @@ import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
-import { getCitations } from "@/server/citations.functions";
-import { getReadinessReport } from "@/server/readiness.functions";
-import { listCountries } from "@/server/opportunities.functions";
-import { listPersonas } from "@/server/skills.functions";
+import { getCitations } from "@/lib/server-fns/citations.functions";
+import { getReadinessReport } from "@/lib/server-fns/readiness.functions";
+import { listCountries } from "@/lib/server-fns/opportunities.functions";
+import { listPersonas } from "@/lib/server-fns/skills.functions";
 import {
   bandFor,
   bandLabel,
