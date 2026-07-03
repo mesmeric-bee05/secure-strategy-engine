@@ -8,7 +8,7 @@ import { PageTitle } from "@/components/PageHeader";
 import { GeolocationConsent } from "@/components/GeolocationConsent";
 import { OpportunitiesMap } from "@/components/OpportunitiesMap";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
-import { listOpportunities } from "@/server/opportunities.functions";
+import { listOpportunities } from "@/lib/server-fns/opportunities.functions";
 import type { LatLngT } from "@/lib/geo";
 
 export const Route = createFileRoute("/opportunities/map")({

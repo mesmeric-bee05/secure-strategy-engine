@@ -5,8 +5,8 @@ import { ArrowRight, Sparkles, ShieldCheck, BarChart3, Globe2, LockKeyhole } fro
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
 import { CitationsPanel } from "@/components/CitationsPanel";
-import { listCountries } from "@/server/opportunities.functions";
-import { getCitations } from "@/server/citations.functions";
+import { listCountries } from "@/lib/server-fns/opportunities.functions";
+import { getCitations } from "@/lib/server-fns/citations.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({

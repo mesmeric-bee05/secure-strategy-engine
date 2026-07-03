@@ -32,7 +32,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/server/audit.functions", () => ({
+vi.mock("@/lib/server-fns/audit.functions", () => ({
   logClientError: vi.fn(),
 }));
 

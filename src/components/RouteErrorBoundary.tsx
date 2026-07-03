@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { logClientError } from "@/server/audit.functions";
+import { logClientError } from "@/lib/server-fns/audit.functions";
 import { recordLastError } from "@/lib/last-error";
 
 export interface RouteErrorBoundaryProps {

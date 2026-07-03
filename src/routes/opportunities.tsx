@@ -15,8 +15,8 @@ import {
   listOpportunities,
   matchOpportunities,
   type OpportunityCardDTO,
-} from "@/server/opportunities.functions";
-import { getCitations } from "@/server/citations.functions";
+} from "@/lib/server-fns/opportunities.functions";
+import { getCitations } from "@/lib/server-fns/citations.functions";
 
 export const COUNTRY_CODES = ["KE", "GH", "NG", "ZA", "RW"] as const;
 export type CountryCode = (typeof COUNTRY_CODES)[number];

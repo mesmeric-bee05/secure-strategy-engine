@@ -3,7 +3,7 @@ import maplibregl, { Map as MLMap, Popup, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { coordsFor, distanceKm, type LatLngT } from "@/lib/geo";
-import type { OpportunityCardDTO } from "@/server/opportunities.functions";
+import type { OpportunityCardDTO } from "@/lib/server-fns/opportunities.functions";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 

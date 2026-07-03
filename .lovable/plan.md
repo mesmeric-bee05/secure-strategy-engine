@@ -1,99 +1,117 @@
 ## Goal
 
-Three coordinated workstreams driven by your uploads:
+Take the two uploaded documents as the single source of truth and bring the live app all the way there:
 
-1. **Redesign** existing app surfaces to match the UNMAPPED v2 prototype's visual system.
-2. **Build** the master phases/tech/security dashboard from `talentgraph_master_dashboard.html` as an in-app route.
-3. **Extract** the architecture + bash docs into a structured roadmap (`docs/roadmap/`).
+- `bash-4.docx` → the **UNMAPPED v3 "elite"** prototype (full HTML/CSS/JS, ~50 pages). This replaces v2 as the design + interaction target.
+- `Now here is the complete system architecture-5.docx` → the **production architecture brief** (schema, AI pipeline, trust engine, security middleware, fairness auditor, soulbound credential, JWT rotation, rate limiting, bias audit, phase plan).
 
-Scope is presentation + content. No backend, RLS, auth, or server-fn refactors. Existing test suite (256 passing) stays green.
-
----
-
-## Track 1 — UNMAPPED v2 design system
-
-Source of truth: `talentgraph_unmapped_v2-5.html` `:root` tokens + component CSS.
-
-**Tokens → `src/styles.css` (@theme)**
-- Surfaces: `--bg-0` `#060B16` → `--bg-4` `#1A2540`; borders 0/1/2.
-- Accents: `--gold` `#E8A838` + `--gold-2` `#C88228`, `--teal` `#2DD4BF`, `--coral` `#F87171`, `--lavender` `#A78BFA`, `--emerald` `#34D399`, `--sky` `#38BDF8`.
-- Text: `--tx-0` `#EDE8E0` / `--tx-1` `#8B9DC0` / `--tx-2` `#4A5578`.
-- Radii: 4/8/12/16/20/24. Soft-glow shadows on gold/teal cards.
-- Map shadcn semantic tokens (`--background`, `--card`, `--primary`, `--border`, `--muted`, `--accent`, etc.) onto the new palette via `@theme inline` so all existing components recolor without rewrites.
-
-**Fonts — `src/routes/__root.tsx` `head()`**
-- Add `<link>` for Sora (display), Space Mono (mono), DM Sans (body). No CSS `@import` of remote URLs.
-- Define `--font-display`, `--font-mono`, `--font-body` in `@theme`. Apply Sora to `h1–h3`, DM Sans to body, Space Mono to numeric/metric runs.
-
-**Global chrome**
-- Body background: layered radial gradients (gold/teal/lavender at 5/4/3% opacity) over `--bg-0`, plus a fixed 48px grid pattern at 1.5% opacity (matches the prototype's `body::before` + `.gridpat`).
-- Topbar: 52px, blurred `rgba(6,11,22,.92)`, gold gradient logo mark + Sora wordmark + "Unmapped" uppercase tag.
-- Sidebar: 256px, `bg-1` panel, grouped sections with uppercase 9px labels.
-- Reusable primitives in `src/components/ui-tg/`: `EcoStrip`, `StatCard`, `SectionHeader`, `PersonaCard`, `BadgeGold/Teal/Coral`, `CardGlow`, `PageEyebrow`.
-
-**Pages redesigned in place** (markup/structure stays; classes swap to new tokens)
-- AppShell / Topbar / Sidebar / Footer
-- `/` (index hero + eco-strip)
-- `/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`, `/settings`, `/trust-graph`, `/credential/$id`
-- LanguageSwitcher, PasskeyManager, MatchExplanation, OpportunitiesMap legend/popups, CitationsPanel, RestoredBanner, LastErrorPanel
-
-No business-logic edits in those files — only className + small wrapper changes.
-
-**Visual regression baselines**
-- `tests/e2e/visual.spec.ts` snapshots will need regeneration once. Plan calls it out so CI failure on first run is expected; baselines updated in the same commit.
+Everything below either ships as production code on the current TanStack Start + Lovable Cloud stack or is explicitly mapped to an existing implementation. Nothing from the brief is silently dropped — anything not built lands in `docs/roadmap/` with a status.
 
 ---
 
-## Track 2 — Master build dashboard route
+## Track A — UNMAPPED v3 design system (replaces v2)
 
-New route: `src/routes/dashboard.tsx` → `/dashboard` (public, SSR on, head metadata set).
+Source: `bash-4.docx` `:root` tokens + component CSS + persona/module/opportunity layouts.
 
-Ports the 5 tabs from `talentgraph_master_dashboard.html`:
-- **Phases** — collapsible phase cards (Discovery, Architecture, AI Pipeline, Security, Launch) with time chips and bullet body.
-- **Tech Stack** — grouped badge grid (frontend/backend/AI/data/infra/blockchain) using badge color variants.
-- **Features** — 6 feature cards mapped to existing routes (`/skills`, `/opportunities`, `/opportunities/map`, `/readiness`, `/security`, `/credential/$id`).
-- **Security** — checklist with status icons; pulls live state from existing `tests/security/__fixtures__/rls.expected.json` for the RLS row count, otherwise static.
-- **Status** — 4-up stat grid (phases done, tests passing, locales shipped, scan findings open).
+**Tokens → `src/styles.css`** (overwrite v2 palette)
+- Surfaces: `--bg #07080C`, `--bg-1 #0E1017`, `--bg-2 #14171F`, `--bg-3 #1C2030`; borders `rgba(255,255,255,.06)` / `.14`.
+- Accents: `--gold #F5A623` (+ dim/glow), `--teal #00C9A7`, `--red #FF4757`, `--blue #4A9FFF`, `--purple #A78BFA`, each with `-dim` companion.
+- Text: `--txt #EDF0F8`, `--txt-2 #8B9AB3`, `--txt-3 #4A556B`.
+- Fonts: **Syne** (display), **DM Sans** (body), **JetBrains Mono** (mono) — loaded via `<link>` in `src/routes/__root.tsx` head, mapped through `@theme` to shadcn semantic tokens.
+- Nav height 56, sidebar 220, radii 10/16.
+- CSP/HSTS/X-Frame/X-Content-Type/Referrer-Policy meta tags mirrored in root head (already partly present via `public/_headers`).
 
-Implementation:
-- Pure React component using shadcn `Tabs`, `Card`, `Badge`, `Collapsible`.
-- No new dependencies. No server fn — fully static content lives in `src/lib/dashboard-content.ts` (typed, i18n-keyed for the 4 supported locales).
-- Add nav entry to Sidebar between Settings and Security with a "Build" badge.
-- `head()`: title "Build Dashboard — TalentGraph Africa", meta description, og:title/description.
+**Global chrome rebuilt to v3**
+- Topbar: 56px, blurred `rgba(7,8,12,.92)`, gradient gold logo mark, "Unmapped · World Bank Challenge 05" sub-tag, tab strip with numeric chips, country selector, live-bandwidth pill with pulsing dot.
+- Sidebar: 220px, sectioned (Persona / Signals / Data Sources) with 9px uppercase labels, econ-signal rows (youth unemployment, informal share, HCI, min-wage) reading from `countries` table.
+- Persona cards (Sarah/James/Amara/Kwame) with avatar + role, active state in gold-dim.
+- Data-source chips (ILO ILOSTAT, ISCO-08, ESCO v1.1, WB HCI, Wittgenstein SSP2, Frey-Osborne, Coursera, Google Career Certs).
 
----
+**Modules (each an in-app route, ported from v3 markup)**
+1. `/skills` — Module 01 Skill Extraction: voice input (Web Speech API, existing `useSpeechRecognition`), portfolio evidence grid, ISCO-08+ESCO mapping table, confidence chips, adaptive assessment CTA.
+2. `/readiness` — Module 02 AI Readiness & Displacement Lens: Frey-Osborne gauge, Wittgenstein SSP2 projections, adjacent-skills resilience chart, Coursera course cards.
+3. `/opportunities` + `/opportunities/map` — Module 03 Opportunity Matching & Econometric Dashboard: match cards with source badges, salary chips, remote flag, live econ signal panel per country.
+4. `/trust-graph` — Module 04 Attestation Constellation: canvas node graph (from v3 script), ECDSA-signed attestation submit dialog, weighted trust rollup.
+5. `/credential/$id` — Module 05 Soulbound Credential: QR, ECDSA signature panel, verifier CTA, "Issued <date>" chip.
+6. `/security` — live security posture (already partial): CSP/HSTS/rate-limit/injection-guard indicators.
+7. `/dashboard` — keep the master build dashboard; restyle to v3 tokens.
 
-## Track 3 — Architecture roadmap extraction
+**Reusable primitives** in `src/components/ui-tg/`: `SignalRow`, `PersonaCard`, `SourceChip`, `MatchCard`, `ConfChip`, `GaugeBox`, `NodeCanvas`, `CountrySelector`, `BandwidthPill`, `NavTab`.
 
-Output: `docs/roadmap/` (markdown only, no code execution).
+No business-logic edits in reused files — className/wrapper swaps and prop-driven data only.
 
-Files:
-- `00-overview.md` — Vision + system diagram description from `Now here is the complete system architecture.docx` p.1–2.
-- `01-data-model.md` — Tables (users, skills, portfolio_items, attestations, opportunities, audit_log) with column lists transcribed from pages 3–4. Cross-reference current Supabase schema, flag gaps.
-- `02-ai-pipeline.md` — Skill extraction + composite scoring + readiness coaching (pages 5–11). Mapped to existing `src/lib/ai/extract-skills.ts` and `supabase/functions/extract-skills-multimodal`.
-- `03-trust-and-credentials.md` — Attestation engine, ECDSA, soulbound NFT (pages 12–15).
-- `04-security-middleware.md` — JWT rotation, prompt-injection patterns, CSP/HSTS (pages 16–19). Cross-reference `src/lib/security/*`.
-- `05-fairness-audits.md` — Group approval deviation logic (pages 23–24, 31–32). Cross-reference `fairness_audits` table.
-- `06-roadmap.md` — Phase 5 / Phase 8 plan (pages 30–33) merged with the dashboard's phase definitions so both stay in sync.
-- `README.md` — index + status table (implemented / partial / not started).
-
-Each file ends with a "Cross-references" block listing the relevant project files. The `bash-3.docx` is the prototype HTML source for Track 1 — referenced in `00-overview.md`, not copied wholesale.
+**Visual regression**: regenerate `tests/e2e/visual.spec.ts` baselines in the same commit.
 
 ---
 
-## Out of scope
+## Track B — Backend feature completion (from architecture brief)
 
-- New backend tables, RLS changes, edge functions, server-fn rewrites.
-- Replacing the map/AI provider or the WebAuthn flow.
-- Real blockchain integration (soulbound NFT stays in roadmap docs only).
-- Hero illustrations / generative imagery (token palette + gradients only).
-- Light theme (UNMAPPED is dark-only).
+Everything below maps to the brief and either fills a gap or hardens an existing surface. All schema goes through `supabase--migration` with GRANT + RLS + policies in one migration.
+
+**B1. Country econ-signal table** (drives sidebar + Module 03)
+- Extend existing `countries` with missing brief columns: `youth_unemployment_pct`, `informal_share_pct`, `hci_score`, `min_wage_usd_month`, `source_url`. RLS: public read (`TO anon`), no writes.
+
+**B2. Frey-Osborne + Wittgenstein reference tables** (already present) — seed via migration from the brief's numbers for KE/GH/NG/ZA. Add `isco_code` foreign keys.
+
+**B3. `credentials` metadata endpoint** — server fn `getCredentialAnchor(id)` returning `{skill, composite_score, issued_at, signature, pubkey, payload_hash}` for public verifier. Already partly present; extend DTO to include Module 05 fields (QR payload URL).
+
+**B4. Attestation constellation query** — server fn `getTrustGraph(userId)` returning nodes+edges for canvas. Uses existing `attestations` + `skills`.
+
+**B5. Bias/fairness batch** — port `FairnessAuditor` from brief pp.23–25 into a SECURITY DEFINER `run_fairness_audit()` scheduled via `pg_cron` daily; writes to existing `fairness_audits`. Admin-only review UI in `/security`.
+
+**B6. Adaptive assessment** — edge function `assessment-generate` + `assessment-score` (matches brief pp.6–8). Uses Lovable AI Gateway; prompt-guarded and rate-limited via existing `rl_check`.
+
+**B7. Soulbound credential anchor (Phase 3 of brief)** — kept **deferred** (no real chain in scope). Instead: server-side ECDSA signature over the payload hash using an app-signing key stored in `SUPABASE_SECRET_KEYS`; emit `credential_anchors.platform_signature` + `signing_key_id`. Documented in `docs/roadmap/03-trust-and-credentials.md` as "on-chain anchor deferred".
+
+**B8. JWT rotation + replay protection (brief pp.16–18)** — Supabase Auth already covers rotation. Add a `used_jtis` table (RLS deny) + refresh-token replay guard in a server fn `rotateRefresh()`; audit on replay attempt.
+
+**B9. Prompt-injection guard** — extend `src/lib/security/prompt-guard.ts` with the exact regex set from brief p.18 (currently ~30, add missing `<|...|>`, `[INST]`, `### instruction`, `you are now`, `act as`, `jailbreak`, `system prompt`).
+
+**B10. Security headers** — mirror the full v3 CSP (`default-src`, `img-src data: blob:`, `connect-src` with Supabase + Lovable AI) in both `public/_headers` and `__root.tsx` meta fallback.
+
+---
+
+## Track C — Roadmap docs refreshed against the new brief
+
+Rewrite `docs/roadmap/` sections to point at v3 and the brief revision 5:
+
+- `00-overview.md` — updated architecture diagram (Client → API gateway → Backend → Data/AI/blockchain), map each layer to current repo files.
+- `01-data-model.md` — full column list from brief pp.3–4, gap analysis vs current migrations, checklist of B1–B4 changes.
+- `02-ai-pipeline.md` — extraction / adaptive assessment / composite score (`0.40*ai + 0.35*att + 0.25*assess`) from brief pp.5–8.
+- `03-trust-and-credentials.md` — ECDSA + weighted attestation + soulbound status ("platform-signed anchor now, on-chain later").
+- `04-security-middleware.md` — brief pp.16–20 mapped to `src/lib/security/*`, `public/_headers`, `rl_check`, `used_jtis`.
+- `05-fairness-audits.md` — 15% deviation rule, batch cron, review queue.
+- `06-roadmap.md` — 7 phases from brief pp.27–33, statuses reflect Tracks A+B.
+- New `07-personas.md` — Sarah/James/Amara/Kwame reference data used by the v3 UI.
+
+---
 
 ## Verification
 
-- `bun run test` — all 256 existing tests still pass; locale strict tests still gate.
-- `bunx playwright test visual.spec.ts --update-snapshots` once, committed.
-- Manual smoke in preview: each route renders with new chrome; LanguageSwitcher still cycles all 4 locales; `/dashboard` tabs switch without console errors.
-- `supabase--linter` unchanged (no DB changes).
+- `bun run test` — all existing 256 tests green; add unit tests for new server fns (`getTrustGraph`, `getCredentialAnchor`, fairness audit math) and prompt-guard additions.
+- `bunx playwright test --update-snapshots` once for v3 visual baselines.
+- `tests/security/rls.invariants.test.ts` extended with new tables (`used_jtis`, extended `countries` grants).
+- `supabase--linter` clean after each migration.
+- Manual smoke: each module route renders v3 chrome; persona switch updates sidebar signals; Module 03 map renders opportunity cards; `/credential/$id` shows ECDSA panel; `/security` shows all guard states green.
 
-Ready to switch to build mode whenever you are.
+---
+
+## Out of scope (explicit)
+
+- Real on-chain mint (Polygon/L2 soulbound NFT). Platform-signed anchor + roadmap only.
+- Neo4j (trust graph stays in Postgres; canvas viz is client-side).
+- Redis / Celery / FastAPI — collapsed onto server fns + `rl_check` per existing convention.
+- Whisper self-host — voice input uses browser Web Speech API (brief-compatible fallback).
+- Light theme.
+
+---
+
+## Order of execution (once approved)
+
+1. Track A tokens + fonts + chrome (single commit, snapshots regenerated).
+2. Track A module route restyles (per-route commits).
+3. Track B1–B2 migrations, then B3–B6 server fns/edge functions, then B8–B9 hardening.
+4. Track C doc refresh.
+5. Full test + snapshot pass, then ready-to-publish.
+
+Ready to switch to build mode.
