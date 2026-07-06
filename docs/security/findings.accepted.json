@@ -1,0 +1,20 @@
+{
+  "$schema": "./findings.accepted.schema.json",
+  "generated_from": "docs/security/findings-2026-06-12.md",
+  "findings": [
+    {
+      "scanner": "supabase",
+      "internal_id": "has_role_execute_authenticated",
+      "status": "accepted",
+      "resource": "public.has_role",
+      "reason": "Required inside RLS policy expressions; STABLE SECURITY DEFINER, reads only user_roles."
+    },
+    {
+      "scanner": "supabase",
+      "internal_id": "submit_attestation_execute_authenticated",
+      "status": "accepted",
+      "resource": "public.submit_attestation",
+      "reason": "Sole write path for peer attestations; hardened with rate limit, duplicate guard, self-attestation rejection, length bounds, and audit logging (migration 2026-06-12)."
+    }
+  ]
+}
