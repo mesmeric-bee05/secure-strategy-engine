@@ -1,0 +1,61 @@
+name: security-nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  full-rescan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Cache bun install
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lockb') }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare reports dir
+        run: mkdir -p reports
+
+      - name: RLS invariants (JUnit)
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: bunx vitest run tests/security/rls.invariants.test.ts --reporter=json --outputFile=reports/rls-invariants.json
+
+      - name: Security memory consistency
+        continue-on-error: true
+        run: bunx vitest run tests/security/security-memory.consistency.test.ts --reporter=json --outputFile=reports/security-memory.json
+
+      - name: Dependency audit
+        continue-on-error: true
+        run: bun pm audit --json > reports/deps.json || true
+
+      - name: Record connector scan status (Wiz)
+        run: |
+          cat > reports/connector-scan.json <<EOF
+          {
+            "note": "Wiz is workspace-scoped; scans run automatically per workspace. Review results in the Lovable Security tab.",
+            "recorded_at": "$(date -u +%FT%TZ)",
+            "wiz_report_url": "${{ secrets.WIZ_REPORT_URL }}"
+          }
+          EOF
+
+      - name: Render HTML report
+        run: bun scripts/render-security-report.ts
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-nightly-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
