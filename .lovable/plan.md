@@ -1,105 +1,82 @@
-## Goal
+# Security Memory Drift Guard + Nightly Full Re-scan
 
-Five coordinated hardening tasks. All narrowly scoped, no product/design changes.
+Three tracks, all additive. No product code touched.
 
----
+## Track 1 — Security memory ↔ invariants/findings consistency test
 
-## 1. E2E: locale-fresh map labels + AI explanation
+New file: `tests/security/security-memory.consistency.test.ts` (vitest).
 
-New spec `tests/e2e/i18n-map-ai-fresh.spec.ts`:
+Inputs it reads at test time:
+- `docs/security/security-memory.md` (canonical source; if the memory currently lives only in the security-memory tool, we mirror it into this file — see Track 2)
+- `tests/security/__fixtures__/rls.expected.json` (existing RLS baseline)
+- `docs/security/findings-2026-06-12.md` + a new `docs/security/findings.accepted.json` machine-readable list of `{scanner, internal_id, status: "accepted"|"fixed"|"ignored", reason}` derived from the latest scan
 
-- For each locale in `[en, sw, fr, ha]`:
-  1. Visit `/opportunities/map`, switch language via `LanguageSwitcher`, assert `document.documentElement.lang` and that visible MapLibre popup / legend / marker labels use only the target locale's `mapLabels.*` strings (loaded from `src/lib/i18n/locales/<lang>.json`). Assert no string from any *other* locale bundle appears in the map DOM.
-  2. Trigger a match-explanation render (mock `getMatchExplanation` server fn with a fixture), assert `MatchExplanation.tsx` output equals the locale bundle's `aiExplanation.*` template interpolation exactly.
-  3. Switch locale twice more (round-trip) and re-assert — catches memoised/cached stale strings.
-- Add a helper `tests/e2e/_helpers/locale-diff.ts` that loads all four JSON bundles and returns "strings that appear ONLY in locale X" so assertions are automatic, not hand-written.
+Assertions:
+1. Every table named in `security-memory.md` under an "intentionally public / owner-only / no-write" section exists in `rls.expected.json` with a matching invariant shape (e.g. memory says "profiles is owner-only" → fixture must list `profiles_self_read` and not a broad `_authenticated_read`).
+2. Every finding the memory calls out as `ACCEPTED` or `IGNORED` appears in `findings.accepted.json` with the same status and a non-empty reason.
+3. Reverse direction: every `accepted`/`ignored` entry in `findings.accepted.json` must be mentioned by `internal_id` (or scanner+resource key) in `security-memory.md`. Catches "silently ignored" findings.
+4. Structural: memory contains required sections (`## Access model`, `## What should never happen`, `## Accepted risks`). Missing section fails.
 
-Guardrail: fails if any component ships hardcoded English fallbacks in the map or explanation code paths.
+Test skips gracefully (with a clear message, not silently) only if the memory file is absent — never on CI.
 
----
+## Track 2 — CI drift gate
 
-## 2. E2E: WebAuthn retry + network-interruption reliability
+New workflow job in `.github/workflows/tests.yml` (added to existing `checks` job, no new workflow file):
 
-Extend existing `tests/e2e/passkey-retry.spec.ts` with three new scenarios:
-
-- **Retry loop under `NotAllowedError`**: virtual authenticator rejects the first 2 assertions, succeeds on the 3rd. Expect UI to surface "Try again" each time and finally establish a session (redirect off `/auth`).
-- **Network interruption mid-challenge**: use Playwright `page.route()` to fail `**/passkeys.functions/**` on the first attempt (abort), then let it through. Expect the client to retry automatically and land in a signed-in state.
-- **Server 5xx once, then 200**: same shape, using `route.fulfill({ status: 503 })` once. Confirms `PasskeyManager` + underlying server fn are resilient without duplicate session creation (assert `supabase.auth.getSession()` returns exactly one session, not stacked).
-
-Runs inside the existing `hasEnv` skip gate so local checkouts without Supabase creds stay green.
-
----
-
-## 3. Security re-scan + fix pass
-
-- Call `security--run_security_scan` to force a fresh scan surface.
-- Call `security--get_scan_results` (including `connector_security_scan` findings, e.g. Wiz).
-- For each new finding:
-  - **Fix** (migration, code edit, dependency bump) → then `security--manage_security_finding` with `mark_as_fixed`.
-  - **Not applicable in context** → `ignore` with a concrete explanation, and update `security--update_memory` so future scans don't reproduce it.
-- Re-run `supabase--linter` after any migration; iterate until clean.
-
-Deferred until run time: exact fixes depend on what the fresh scan returns. Nothing is pre-committed.
-
----
-
-## 4. Automated /dashboard tab checks
-
-New spec `tests/e2e/dashboard-tabs.spec.ts`:
-
-- Visit `/dashboard`.
-- For each of Phases, Tech Stack, Features, Security, Status:
-  - Click the tab, assert it becomes `aria-selected="true"`.
-  - Assert the expected data slice from `src/lib/dashboard-content.ts` is rendered:
-    - Phases: 6 phase cards, titles match `dashboardContent.phases[i].title`.
-    - Tech Stack: badge groups (frontend/backend/AI/data/infra/blockchain) present with expected counts.
-    - Features: 6 feature cards, each links to the correct route.
-    - Security: checklist rows equal the `dashboardContent.security` entries; RLS row count matches `tests/security/__fixtures__/rls.expected.json` table count.
-    - Status: 4 stat cards render (phases done, tests passing, locales shipped, scan findings open).
-  - Screenshot each tab into `tests/e2e/__screenshots__/dashboard-<tab>.png` for visual regression.
-
-Companion unit test `src/routes/__tests__/dashboard.content.test.ts` validates `dashboard-content.ts` shape with Zod, so drift between the doc and the route fails at unit-test time (fast) before the e2e even runs.
-
----
-
-## 5. CI on every push
-
-Extend `.github/workflows/tests.yml` (or add `.github/workflows/ci.yml` if cleaner) so **push** and **pull_request** both trigger a single `checks` job:
-
-```yaml
-on: [push, pull_request]
-jobs:
-  checks:
-    runs-on: ubuntu-latest
-    steps:
-      - checkout
-      - setup-bun
-      - bun install --frozen-lockfile
-      - bun run lint                         # eslint
-      - bunx tsgo --noEmit                   # typecheck
-      - bun run build:dev                    # verifies Vite/TanStack build
-      - bun run test                         # vitest (unit + integration)
-      - bunx playwright install --with-deps chromium
-      - bun run test:e2e                     # Playwright, incl. new specs above
+```
+- name: Security memory drift gate
+  run: bun run test tests/security/security-memory.consistency.test.ts
 ```
 
-- Cache `~/.bun/install/cache` and `node_modules/.vite` for speed.
-- Upload Playwright HTML report + screenshots on failure via `actions/upload-artifact@v4`.
-- Keep the existing `security-regression.yml` workflow separate (its own scheduled cron), so this new job is push-triggered only.
-- Concurrency group keyed on ref so redundant runs cancel.
+Additionally, a path-scoped guard in the same job:
 
----
+```
+- name: Require paired updates when security memory changes
+  run: bun scripts/check-security-memory-drift.ts
+```
+
+New script `scripts/check-security-memory-drift.ts`:
+- Uses `git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD` (falls back to `HEAD~1` on push).
+- If `docs/security/security-memory.md` is in the diff, require that at least one of these is also in the diff:
+  - `tests/security/__fixtures__/rls.expected.json`
+  - `docs/security/findings.accepted.json`
+  - a new file under `supabase/migrations/`
+- Otherwise exit non-zero with a message pointing to the missing artifact.
+- Symmetric check: if `findings.accepted.json` changes, `security-memory.md` must change too.
+
+Mirror step (one-time, part of this track): export the current security-memory content into `docs/security/security-memory.md` so the file is the source of truth the tests + gate can read. Future updates via `security--update_memory` will be paired with an edit to this file (documented in `docs/security/README.md`).
+
+## Track 3 — Nightly full security re-scan + artifacts
+
+New workflow `.github/workflows/security-nightly.yml`:
+
+```text
+name: security-nightly
+on:
+  schedule: [{ cron: "0 3 * * *" }]   # 03:00 UTC daily
+  workflow_dispatch:
+jobs:
+  full-rescan:
+    runs-on: ubuntu-latest
+    steps:
+      - checkout + bun setup + install
+      - Run Supabase linter CLI against project (bunx supabase db lint ... using E2E_SUPABASE_* secrets), write JSON to reports/supabase-lint.json
+      - Run RLS invariants test → JUnit XML in reports/
+      - Run dependency scan (bun run scripts/dep-scan.ts if present, else `bunx audit-ci --config .audit-ci.json`) → reports/deps.json
+      - Fetch connector scan (Wiz) results via the workspace-configured connector output artifact if exposed as a repo secret WIZ_REPORT_URL; otherwise emit a placeholder note (Wiz scans run workspace-wide and are viewed in Security tab — this step just records the timestamp + last-known digest).
+      - Render an HTML index: scripts/render-security-report.ts consumes reports/*.json and writes reports/index.html (simple template, no framework).
+      - actions/upload-artifact@v4: name=security-nightly-<date>, path=reports/, retention-days=30
+      - On any hard failure (linter error, new HIGH finding not in findings.accepted.json), open/refresh a GitHub issue titled "Nightly security scan: new findings YYYY-MM-DD" with the delta.
+```
+
+The existing `security-regression.yml` stays as-is (PR-scoped RLS invariants); this new workflow is the broad nightly.
 
 ## Out of scope
-
-- Any product/design changes (dashboard content, map styling, passkey UX copy).
-- New backend tables or RLS changes beyond what a security-scan fix requires.
-- Adding new locales.
-- Rewriting the existing security-regression workflow.
+- Changing product code, RLS policies, or migrations.
+- Auto-fixing new findings — nightly only surfaces them.
+- Wiz API integration beyond recording status (Wiz is workspace-scoped, not per-project; results remain viewable in the Security tab).
 
 ## Verification
-
-- All new specs pass locally: `bun run test && bun run test:e2e`.
-- `tsgo --noEmit` clean, `bun run lint` clean, `bun run build:dev` clean.
-- Fresh security scan returns zero unaddressed findings; `security-memory` reflects any accepted ignores.
-- CI green on the first push after merge.
+- Run the new consistency test locally: `bun run test tests/security/security-memory.consistency.test.ts` — passes against current fixtures.
+- Simulate drift: temporarily edit `security-memory.md` without touching sibling files → `scripts/check-security-memory-drift.ts` exits 1.
+- Trigger `security-nightly` via `workflow_dispatch` from a branch to confirm artifact upload.
