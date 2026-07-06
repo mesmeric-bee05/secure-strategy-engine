@@ -29,6 +29,10 @@ jobs:
         run: bunx tsgo --noEmit
       - name: Strict i18n locale gate
         run: bun run test:i18n:strict
+      - name: Security memory consistency
+        run: bunx vitest run tests/security/security-memory.consistency.test.ts
+      - name: Security memory paired-update gate
+        run: bun scripts/check-security-memory-drift.ts
       - name: Unit + integration tests
         run: bun run test -- --reporter=default --reporter=junit --outputFile=vitest-report/junit.xml
       - name: Build (dev mode)
