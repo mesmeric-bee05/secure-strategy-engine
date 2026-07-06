@@ -54,7 +54,9 @@ describe("security memory consistency", () => {
     const allKnownPolicies = new Set(Object.values(rlsExpected.tables).flat());
     // Only assert on names that look like RLS policies (start with a table prefix we know).
     const tableNames = Object.keys(rlsExpected.tables);
-    const referenced = policyLike.filter((n) => tableNames.some((t) => n.startsWith(t)));
+    const referenced = policyLike.filter(
+      (n) => tableNames.some((t) => n.startsWith(t)) && !tableNames.includes(n),
+    );
     for (const name of referenced) {
       expect(allKnownPolicies, `memory references unknown policy \`${name}\``).toContain(name);
     }
