@@ -48,7 +48,7 @@ describe("MatchExplanation auth contract", () => {
     fetchSpy.mockResolvedValueOnce(mockFetchStream());
 
     render(<MatchExplanation opportunity={opportunity} personaSummary="Handy" />);
-    await userEvent.click(screen.getByRole("button", { name: /explain match/i }));
+    fireEvent.click(screen.getByRole("button", { name: /explain match/i }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     const [url, init] = fetchSpy.mock.calls[0];
@@ -65,7 +65,7 @@ describe("MatchExplanation auth contract", () => {
     getSession.mockResolvedValueOnce({ data: { session: null } });
 
     render(<MatchExplanation opportunity={opportunity} personaSummary="Handy" />);
-    await userEvent.click(screen.getByRole("button", { name: /explain match/i }));
+    fireEvent.click(screen.getByRole("button", { name: /explain match/i }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/sign in/i)),
@@ -78,7 +78,7 @@ describe("MatchExplanation auth contract", () => {
     fetchSpy.mockResolvedValueOnce(new Response("", { status: 401 }));
 
     render(<MatchExplanation opportunity={opportunity} personaSummary="Handy" />);
-    await userEvent.click(screen.getByRole("button", { name: /explain match/i }));
+    fireEvent.click(screen.getByRole("button", { name: /explain match/i }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/sign in/i)),
