@@ -17,6 +17,7 @@ import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SecurityFindingsHistoryRouteImport } from './routes/security.findings-history'
 import { Route as OpportunitiesMapRouteImport } from './routes/opportunities.map'
 import { Route as CredentialIdRouteImport } from './routes/credential.$id'
 
@@ -60,6 +61,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityFindingsHistoryRoute = SecurityFindingsHistoryRouteImport.update({
+  id: '/findings-history',
+  path: '/findings-history',
+  getParentRoute: () => SecurityRoute,
+} as any)
 const OpportunitiesMapRoute = OpportunitiesMapRouteImport.update({
   id: '/map',
   path: '/map',
@@ -76,24 +82,26 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
-  '/security': typeof SecurityRoute
+  '/security': typeof SecurityRouteWithChildren
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
+  '/security/findings-history': typeof SecurityFindingsHistoryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
-  '/security': typeof SecurityRoute
+  '/security': typeof SecurityRouteWithChildren
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
+  '/security/findings-history': typeof SecurityFindingsHistoryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,12 +109,13 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/opportunities': typeof OpportunitiesRouteWithChildren
   '/readiness': typeof ReadinessRoute
-  '/security': typeof SecurityRoute
+  '/security': typeof SecurityRouteWithChildren
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
   '/trust-graph': typeof TrustGraphRoute
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
+  '/security/findings-history': typeof SecurityFindingsHistoryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
+    | '/security/findings-history'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
+    | '/security/findings-history'
   id:
     | '__root__'
     | '/'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/trust-graph'
     | '/credential/$id'
     | '/opportunities/map'
+    | '/security/findings-history'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -152,7 +164,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   OpportunitiesRoute: typeof OpportunitiesRouteWithChildren
   ReadinessRoute: typeof ReadinessRoute
-  SecurityRoute: typeof SecurityRoute
+  SecurityRoute: typeof SecurityRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SkillsRoute: typeof SkillsRoute
   TrustGraphRoute: typeof TrustGraphRoute
@@ -217,6 +229,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/security/findings-history': {
+      id: '/security/findings-history'
+      path: '/findings-history'
+      fullPath: '/security/findings-history'
+      preLoaderRoute: typeof SecurityFindingsHistoryRouteImport
+      parentRoute: typeof SecurityRoute
+    }
     '/opportunities/map': {
       id: '/opportunities/map'
       path: '/map'
@@ -246,12 +265,24 @@ const OpportunitiesRouteWithChildren = OpportunitiesRoute._addFileChildren(
   OpportunitiesRouteChildren,
 )
 
+interface SecurityRouteChildren {
+  SecurityFindingsHistoryRoute: typeof SecurityFindingsHistoryRoute
+}
+
+const SecurityRouteChildren: SecurityRouteChildren = {
+  SecurityFindingsHistoryRoute: SecurityFindingsHistoryRoute,
+}
+
+const SecurityRouteWithChildren = SecurityRoute._addFileChildren(
+  SecurityRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   OpportunitiesRoute: OpportunitiesRouteWithChildren,
   ReadinessRoute: ReadinessRoute,
-  SecurityRoute: SecurityRoute,
+  SecurityRoute: SecurityRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SkillsRoute: SkillsRoute,
   TrustGraphRoute: TrustGraphRoute,
