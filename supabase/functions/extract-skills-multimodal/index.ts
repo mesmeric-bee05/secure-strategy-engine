@@ -63,11 +63,18 @@ serve(async (req) => {
   const requestId = newRequestId();
   const started = performance.now();
   const ip = clientIp(req);
-  const userId = req.headers.get("x-user-id"); // best-effort tag from invoker
 
   try {
-    // Rate limit: per-IP 10/min
-    const rl = await checkLimit({ bucket: "ai:extract", identifier: ip, limit: 10, windowSeconds: 60 });
+    // Require authenticated caller — prevents anon-key abuse of AI credits.
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      logEvent({ fn: FN, requestId, status: auth.status ?? 401, latencyMs: performance.now() - started, errorCode: auth.error ?? "unauthorized" });
+      return jsonResp({ error: auth.error ?? "unauthorized" }, auth.status ?? 401);
+    }
+    const userId = auth.userId!;
+
+    // Rate limit: per-user 10/min (falls back to IP for logging)
+    const rl = await checkLimit({ bucket: "ai:extract", identifier: `u:${userId}`, limit: 10, windowSeconds: 60 });
     if (!rl.allowed) {
       logEvent({ fn: FN, requestId, status: 429, latencyMs: performance.now() - started, errorCode: "rate_limited", userId });
       return jsonResp({ error: "rate_limited", message: "Too many requests" }, 429);
