@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OpportunityForExplain {
   title: string;
@@ -16,6 +17,7 @@ export interface MatchExplanationProps {
 
 const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-explanation`;
 const PUB_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
 
 export function MatchExplanation({ opportunity, personaSummary }: MatchExplanationProps) {
   const [text, setText] = useState("");
@@ -34,11 +36,19 @@ export function MatchExplanation({ opportunity, personaSummary }: MatchExplanati
     abortRef.current = ctrl;
 
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const accessToken = sess.session?.access_token;
+      if (!accessToken) {
+        toast.error("Please sign in to generate an explanation.");
+        setLoading(false);
+        return;
+      }
       const resp = await fetch(FN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${PUB_KEY}`,
+          apikey: PUB_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           opportunity: {
@@ -52,6 +62,11 @@ export function MatchExplanation({ opportunity, personaSummary }: MatchExplanati
         signal: ctrl.signal,
       });
 
+      if (resp.status === 401) {
+        toast.error("Please sign in to generate an explanation.");
+        setLoading(false);
+        return;
+      }
       if (resp.status === 429) {
         toast.error("Rate limited — try again shortly.");
         setLoading(false);

@@ -3,8 +3,9 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { sanitizeUserPrompt } from "../_shared/prompt-guard.ts";
 import { LOVABLE_AI_URL, aiHeaders, mapGatewayError } from "../_shared/lovable-ai.ts";
 import { validateExtractSkills, BadRequest } from "../_shared/validation.ts";
-import { checkLimit, clientIp } from "../_shared/rate-limit.ts";
+import { checkLimit } from "../_shared/rate-limit.ts";
 import { logEvent, newRequestId } from "../_shared/logger.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const FN = "extract-skills-multimodal";
 const MODEL = "google/gemini-2.5-pro";
@@ -61,12 +62,19 @@ serve(async (req) => {
 
   const requestId = newRequestId();
   const started = performance.now();
-  const ip = clientIp(req);
-  const userId = req.headers.get("x-user-id"); // best-effort tag from invoker
+  
 
   try {
-    // Rate limit: per-IP 10/min
-    const rl = await checkLimit({ bucket: "ai:extract", identifier: ip, limit: 10, windowSeconds: 60 });
+    // Require authenticated caller — prevents anon-key abuse of AI credits.
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      logEvent({ fn: FN, requestId, status: auth.status ?? 401, latencyMs: performance.now() - started, errorCode: auth.error ?? "unauthorized" });
+      return jsonResp({ error: auth.error ?? "unauthorized" }, auth.status ?? 401);
+    }
+    const userId = auth.userId!;
+
+    // Rate limit: per-user 10/min (falls back to IP for logging)
+    const rl = await checkLimit({ bucket: "ai:extract", identifier: `u:${userId}`, limit: 10, windowSeconds: 60 });
     if (!rl.allowed) {
       logEvent({ fn: FN, requestId, status: 429, latencyMs: performance.now() - started, errorCode: "rate_limited", userId });
       return jsonResp({ error: "rate_limited", message: "Too many requests" }, 429);

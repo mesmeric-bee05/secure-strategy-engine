@@ -3,8 +3,9 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { sanitizeUserPrompt } from "../_shared/prompt-guard.ts";
 import { LOVABLE_AI_URL, aiHeaders, mapGatewayError } from "../_shared/lovable-ai.ts";
 import { validateExplain, BadRequest } from "../_shared/validation.ts";
-import { checkLimit, clientIp } from "../_shared/rate-limit.ts";
+import { checkLimit } from "../_shared/rate-limit.ts";
 import { logEvent, newRequestId } from "../_shared/logger.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const FN = "match-explanation";
 const MODEL = "google/gemini-3-flash-preview";
@@ -33,11 +34,17 @@ serve(async (req) => {
 
   const requestId = newRequestId();
   const started = performance.now();
-  const ip = clientIp(req);
-  const userId = req.headers.get("x-user-id");
 
   try {
-    const rl = await checkLimit({ bucket: "ai:explain", identifier: ip, limit: 30, windowSeconds: 60 });
+    // Require authenticated caller — prevents anon-key abuse of AI credits.
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      logEvent({ fn: FN, requestId, status: auth.status ?? 401, latencyMs: performance.now() - started, errorCode: auth.error ?? "unauthorized" });
+      return jsonResp({ error: auth.error ?? "unauthorized" }, auth.status ?? 401);
+    }
+    const userId = auth.userId!;
+
+    const rl = await checkLimit({ bucket: "ai:explain", identifier: `u:${userId}`, limit: 30, windowSeconds: 60 });
     if (!rl.allowed) {
       logEvent({ fn: FN, requestId, status: 429, latencyMs: performance.now() - started, errorCode: "rate_limited", userId });
       return jsonResp({ error: "rate_limited" }, 429);
