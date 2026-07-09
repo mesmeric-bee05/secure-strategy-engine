@@ -3,7 +3,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { sanitizeUserPrompt } from "../_shared/prompt-guard.ts";
 import { LOVABLE_AI_URL, aiHeaders, mapGatewayError } from "../_shared/lovable-ai.ts";
 import { validateExtractSkills, BadRequest } from "../_shared/validation.ts";
-import { checkLimit, clientIp } from "../_shared/rate-limit.ts";
+import { checkLimit } from "../_shared/rate-limit.ts";
 import { logEvent, newRequestId } from "../_shared/logger.ts";
 import { requireUser } from "../_shared/auth.ts";
 
