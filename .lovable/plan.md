@@ -1,82 +1,129 @@
-# Security Memory Drift Guard + Nightly Full Re-scan
+## Goals
 
-Three tracks, all additive. No product code touched.
+1. Make the security-memory drift gate self-explanatory in PRs.
+2. Give a browsable Findings History page in the app.
+3. Stabilise finding identity so nightly re-scans stop re-reporting the same issue.
+4. One local command to reproduce the nightly security run end-to-end.
+5. Schedule the nightly full re-scan and publish HTML+JSON artifacts.
+6. Lock in the new JWT-authenticated edge-function contract with tests + build-time guards.
 
-## Track 1 — Security memory ↔ invariants/findings consistency test
+---
 
-New file: `tests/security/security-memory.consistency.test.ts` (vitest).
+## 1. Drift-gate PR comments
 
-Inputs it reads at test time:
-- `docs/security/security-memory.md` (canonical source; if the memory currently lives only in the security-memory tool, we mirror it into this file — see Track 2)
-- `tests/security/__fixtures__/rls.expected.json` (existing RLS baseline)
-- `docs/security/findings-2026-06-12.md` + a new `docs/security/findings.accepted.json` machine-readable list of `{scanner, internal_id, status: "accepted"|"fixed"|"ignored", reason}` derived from the latest scan
+Extend `scripts/check-security-memory-drift.ts` so, on failure, it writes a structured markdown report to `drift-report.md` containing:
 
-Assertions:
-1. Every table named in `security-memory.md` under an "intentionally public / owner-only / no-write" section exists in `rls.expected.json` with a matching invariant shape (e.g. memory says "profiles is owner-only" → fixture must list `profiles_self_read` and not a broad `_authenticated_read`).
-2. Every finding the memory calls out as `ACCEPTED` or `IGNORED` appears in `findings.accepted.json` with the same status and a non-empty reason.
-3. Reverse direction: every `accepted`/`ignored` entry in `findings.accepted.json` must be mentioned by `internal_id` (or scanner+resource key) in `security-memory.md`. Catches "silently ignored" findings.
-4. Structural: memory contains required sections (`## Access model`, `## What should never happen`, `## Accepted risks`). Missing section fails.
+- Changed keys in `docs/security/security-memory.md` (diff of headings + bullets, computed from `git diff`).
+- Which RLS invariants (`tests/security/__fixtures__/rls.expected.json`) or accepted findings (`docs/security/findings.accepted.json`) were expected to change but didn't.
+- Which of the three "paired" files DID change vs which are missing.
 
-Test skips gracefully (with a clear message, not silently) only if the memory file is absent — never on CI.
+Add a new job step in `.github/workflows/security-regression.yml` (and `tests.yml` where drift runs) that, on `pull_request` events when the drift script exits non-zero, posts/updates a sticky PR comment via `actions/github-script` using `drift-report.md`. Uses the built-in `GITHUB_TOKEN`; no extra secrets.
 
-## Track 2 — CI drift gate
+## 2. Findings History page
 
-New workflow job in `.github/workflows/tests.yml` (added to existing `checks` job, no new workflow file):
+New route `src/routes/security.findings-history.tsx` (child of the existing `/security` layout tab bar):
 
-```
-- name: Security memory drift gate
-  run: bun run test tests/security/security-memory.consistency.test.ts
-```
+- Lists the last N nightly runs (default 30) read from a new JSON index `public/security/history/index.json`.
+- Each run row expands into a table with columns: fingerprint, scanner, resource, severity, status (`accepted`, `ignored`, `new`, `resolved`), first-seen, last-seen.
+- Side-by-side diff between two selected runs (checkbox picker) using the fingerprint as join key.
+- Client-only route, no server calls; artifacts loaded via `fetch('/security/history/<run>.json')`.
 
-Additionally, a path-scoped guard in the same job:
+Ships with a small `SecurityFindingsHistory` component + `src/lib/security/history.ts` loader with a Zod schema. Route is gated behind `has_role('admin')` via the existing `_authenticated` guard pattern.
 
-```
-- name: Require paired updates when security memory changes
-  run: bun scripts/check-security-memory-drift.ts
-```
+## 3. Stable fingerprinting + de-duplication
 
-New script `scripts/check-security-memory-drift.ts`:
-- Uses `git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD` (falls back to `HEAD~1` on push).
-- If `docs/security/security-memory.md` is in the diff, require that at least one of these is also in the diff:
-  - `tests/security/__fixtures__/rls.expected.json`
-  - `docs/security/findings.accepted.json`
-  - a new file under `supabase/migrations/`
-- Otherwise exit non-zero with a message pointing to the missing artifact.
-- Symmetric check: if `findings.accepted.json` changes, `security-memory.md` must change too.
+Add `scripts/security/fingerprint.ts` exporting `fingerprintFinding(f)` returning a SHA-256 of a canonical tuple: `scanner|internal_id|resource|rule|severity`. Rules:
 
-Mirror step (one-time, part of this track): export the current security-memory content into `docs/security/security-memory.md` so the file is the source of truth the tests + gate can read. Future updates via `security--update_memory` will be paired with an edit to this file (documented in `docs/security/README.md`).
+- Normalise whitespace, lowercase resource identifiers.
+- Prefer `internal_id` when present; otherwise fall back to `rule + resource + evidence hash`.
 
-## Track 3 — Nightly full security re-scan + artifacts
+Update `scripts/render-security-report.ts` to:
 
-New workflow `.github/workflows/security-nightly.yml`:
+- Compute `fingerprint` for every finding.
+- Load the prior run (`public/security/history/latest.json`) and mark each finding as `new`, `recurring`, `accepted`, or `ignored`.
+- Emit two artifacts: `report-<date>.html` and `report-<date>.json` (with fingerprints), plus update `latest.json` and append to `index.json`.
+- Fail the nightly test job only when `new` findings appear (not on `recurring`).
 
-```text
-name: security-nightly
-on:
-  schedule: [{ cron: "0 3 * * *" }]   # 03:00 UTC daily
-  workflow_dispatch:
-jobs:
-  full-rescan:
-    runs-on: ubuntu-latest
-    steps:
-      - checkout + bun setup + install
-      - Run Supabase linter CLI against project (bunx supabase db lint ... using E2E_SUPABASE_* secrets), write JSON to reports/supabase-lint.json
-      - Run RLS invariants test → JUnit XML in reports/
-      - Run dependency scan (bun run scripts/dep-scan.ts if present, else `bunx audit-ci --config .audit-ci.json`) → reports/deps.json
-      - Fetch connector scan (Wiz) results via the workspace-configured connector output artifact if exposed as a repo secret WIZ_REPORT_URL; otherwise emit a placeholder note (Wiz scans run workspace-wide and are viewed in Security tab — this step just records the timestamp + last-known digest).
-      - Render an HTML index: scripts/render-security-report.ts consumes reports/*.json and writes reports/index.html (simple template, no framework).
-      - actions/upload-artifact@v4: name=security-nightly-<date>, path=reports/, retention-days=30
-      - On any hard failure (linter error, new HIGH finding not in findings.accepted.json), open/refresh a GitHub issue titled "Nightly security scan: new findings YYYY-MM-DD" with the delta.
-```
+## 4. One-command local workflow
 
-The existing `security-regression.yml` stays as-is (PR-scoped RLS invariants); this new workflow is the broad nightly.
+Add `scripts/security/rescan.mjs` and a `package.json` script `"security:rescan"` that runs, in order:
 
-## Out of scope
-- Changing product code, RLS policies, or migrations.
-- Auto-fixing new findings — nightly only surfaces them.
-- Wiz API integration beyond recording status (Wiz is workspace-scoped, not per-project; results remain viewable in the Security tab).
+1. `bun run tsgo` (type gate for scripts).
+2. `vitest run tests/security` (RLS invariants + memory consistency).
+3. `bun scripts/security/collect.ts` (calls the security scanner API where available, otherwise loads `docs/security/findings-*.md` + `findings.accepted.json` as inputs).
+4. `bun scripts/render-security-report.ts` to produce HTML+JSON under `./.security-out/`.
+5. Prints a summary table (new / recurring / accepted / ignored counts).
 
-## Verification
-- Run the new consistency test locally: `bun run test tests/security/security-memory.consistency.test.ts` — passes against current fixtures.
-- Simulate drift: temporarily edit `security-memory.md` without touching sibling files → `scripts/check-security-memory-drift.ts` exits 1.
-- Trigger `security-nightly` via `workflow_dispatch` from a branch to confirm artifact upload.
+Documented in `docs/security/README.md` with the exact command `bun run security:rescan`.
+
+## 5. Nightly workflow + artifacts
+
+Update `.github/workflows/security-nightly.yml`:
+
+- Schedule already at 03:00 UTC; keep it.
+- Run `bun run security:rescan` (single entry point — matches #4).
+- Upload `./.security-out/` as an artifact named `security-nightly-<run_id>` with 30-day retention.
+- Commit the new `public/security/history/*.json` files back to the repo on `main` via a bot commit step (so the Findings History page has data). Uses `peter-evans/create-pull-request` to avoid direct pushes.
+- On new (non-recurring) findings, open/update a tracking issue with the same fingerprint list.
+
+## 6. MatchExplanation auth contract
+
+**Integration test** — `src/components/__tests__/MatchExplanation.auth.test.tsx`:
+
+- Mocks `supabase.auth.getSession` to return a session with `access_token = "test-jwt"`.
+- Mocks `fetch`; asserts the request Authorization header equals `Bearer test-jwt` and `apikey` equals the publishable key.
+- Second case: no session → toast "Please sign in…" and no fetch call.
+
+**Build-time FN_URL validation**:
+
+- Extract the URL into `src/lib/ai/endpoints.ts` with a Zod check on `import.meta.env.VITE_SUPABASE_URL` (non-empty https). Throws at module load with a clear message if missing.
+- `MatchExplanation.tsx` imports the resolved URL from that module.
+- Vitest `src/lib/ai/__tests__/endpoints.test.ts` covers empty/malformed env cases.
+
+**Edge-function regression tests** — `supabase/functions/_shared/auth_test.ts` and per-function `*_auth_test.ts` (Deno test):
+
+- Unauthenticated request (no `Authorization`) → 401 `missing_authorization`.
+- Invalid bearer → 401 `invalid_token`.
+- Rate limit keying: two requests with different IPs but the same user id share the same bucket; two different user ids do not. Verified by mocking `checkLimit` to record the `identifier` argument and asserting it starts with `u:<userId>`.
+
+CI: add a job step running `deno test supabase/functions/_shared supabase/functions/extract-skills-multimodal supabase/functions/match-explanation` in `tests.yml`.
+
+---
+
+## Technical details
+
+**Files created**
+- `scripts/security/fingerprint.ts`
+- `scripts/security/collect.ts`
+- `scripts/security/rescan.mjs`
+- `src/routes/security.findings-history.tsx`
+- `src/lib/security/history.ts`
+- `src/lib/ai/endpoints.ts`
+- `src/lib/ai/__tests__/endpoints.test.ts`
+- `src/components/__tests__/MatchExplanation.auth.test.tsx`
+- `supabase/functions/_shared/auth_test.ts`
+- `supabase/functions/extract-skills-multimodal/index_auth_test.ts`
+- `supabase/functions/match-explanation/index_auth_test.ts`
+- `public/security/history/index.json` (seed with current baseline)
+
+**Files modified**
+- `scripts/check-security-memory-drift.ts` (emit `drift-report.md`)
+- `scripts/render-security-report.ts` (fingerprint + diff vs prior run)
+- `src/components/MatchExplanation.tsx` (use `endpoints.ts`)
+- `src/routes/security.tsx` (add "Findings history" tab)
+- `.github/workflows/security-regression.yml` (drift PR comment step)
+- `.github/workflows/security-nightly.yml` (rescan + artifact upload + history commit)
+- `.github/workflows/tests.yml` (add deno test job)
+- `package.json` (`security:rescan` script)
+- `docs/security/README.md` (document the local command)
+
+**Out of scope**
+- Changing which findings are accepted/ignored.
+- Any RLS policy or Supabase function change (invariants stay identical; only the tooling around them changes).
+- Redesigning the existing `/security` page — the new page is an added tab.
+
+**Verification**
+- `bun run security:rescan` locally produces `.security-out/report-*.html` with zero `new` findings.
+- Vitest suites (RLS invariants, memory consistency, endpoints, MatchExplanation.auth) all pass.
+- `deno test` in the three edge-function paths passes.
+- Simulated PR that edits `security-memory.md` alone triggers the drift gate and posts the PR comment with the changed-keys list.

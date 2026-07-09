@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { MATCH_EXPLANATION_URL } from "@/lib/ai/endpoints";
 
 interface OpportunityForExplain {
   title: string;
@@ -15,7 +16,7 @@ export interface MatchExplanationProps {
   personaSummary: string;
 }
 
-const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-explanation`;
+const FN_URL = MATCH_EXPLANATION_URL;
 const PUB_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 
