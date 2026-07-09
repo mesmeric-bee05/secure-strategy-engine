@@ -62,7 +62,7 @@ serve(async (req) => {
 
   const requestId = newRequestId();
   const started = performance.now();
-  const ip = clientIp(req);
+  void clientIp; // ip retained for future logging; per-user rate limiting is primary
 
   try {
     // Require authenticated caller — prevents anon-key abuse of AI credits.
