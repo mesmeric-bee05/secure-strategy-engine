@@ -62,6 +62,11 @@ export function MatchExplanation({ opportunity, personaSummary }: MatchExplanati
         signal: ctrl.signal,
       });
 
+      if (resp.status === 401) {
+        toast.error("Please sign in to generate an explanation.");
+        setLoading(false);
+        return;
+      }
       if (resp.status === 429) {
         toast.error("Rate limited — try again shortly.");
         setLoading(false);
