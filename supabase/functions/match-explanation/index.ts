@@ -34,11 +34,17 @@ serve(async (req) => {
 
   const requestId = newRequestId();
   const started = performance.now();
-  const ip = clientIp(req);
-  const userId = req.headers.get("x-user-id");
 
   try {
-    const rl = await checkLimit({ bucket: "ai:explain", identifier: ip, limit: 30, windowSeconds: 60 });
+    // Require authenticated caller — prevents anon-key abuse of AI credits.
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      logEvent({ fn: FN, requestId, status: auth.status ?? 401, latencyMs: performance.now() - started, errorCode: auth.error ?? "unauthorized" });
+      return jsonResp({ error: auth.error ?? "unauthorized" }, auth.status ?? 401);
+    }
+    const userId = auth.userId!;
+
+    const rl = await checkLimit({ bucket: "ai:explain", identifier: `u:${userId}`, limit: 30, windowSeconds: 60 });
     if (!rl.allowed) {
       logEvent({ fn: FN, requestId, status: 429, latencyMs: performance.now() - started, errorCode: "rate_limited", userId });
       return jsonResp({ error: "rate_limited" }, 429);
