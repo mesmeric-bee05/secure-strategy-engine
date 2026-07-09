@@ -36,11 +36,19 @@ export function MatchExplanation({ opportunity, personaSummary }: MatchExplanati
     abortRef.current = ctrl;
 
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const accessToken = sess.session?.access_token;
+      if (!accessToken) {
+        toast.error("Please sign in to generate an explanation.");
+        setLoading(false);
+        return;
+      }
       const resp = await fetch(FN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${PUB_KEY}`,
+          apikey: PUB_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           opportunity: {
