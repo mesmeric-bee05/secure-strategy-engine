@@ -5,6 +5,7 @@ import { LOVABLE_AI_URL, aiHeaders, mapGatewayError } from "../_shared/lovable-a
 import { validateExtractSkills, BadRequest } from "../_shared/validation.ts";
 import { checkLimit, clientIp } from "../_shared/rate-limit.ts";
 import { logEvent, newRequestId } from "../_shared/logger.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const FN = "extract-skills-multimodal";
 const MODEL = "google/gemini-2.5-pro";
