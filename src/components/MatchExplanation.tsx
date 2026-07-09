@@ -15,6 +15,7 @@ export interface MatchExplanationProps {
   personaSummary: string;
 }
 
+const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-explanation`;
 const PUB_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 
