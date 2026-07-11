@@ -36,30 +36,38 @@ export const Route = createFileRoute("/security/findings-history")({
 function FindingsHistoryPage() {
   const [index, setIndex] = useState<HistoryIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState<null | { status: number; message: string }>(null);
   const [runs, setRuns] = useState<Record<string, HistoryRun>>({});
   const [selected, setSelected] = useState<string[]>([]);
+
+  const handleError = (e: unknown) => {
+    if (e instanceof HistoryAccessError) {
+      setAccessDenied({ status: e.status, message: e.message });
+      return;
+    }
+    setError(String(e));
+  };
 
   useEffect(() => {
     loadHistoryIndex()
       .then((idx) => {
         setIndex(idx);
-        // Auto-load latest 2 runs for the side-by-side view.
-        const latest = [...idx.runs].sort((a, b) =>
-          b.timestamp.localeCompare(a.timestamp),
-        );
+        const latest = [...idx.runs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         setSelected(latest.slice(0, 2).map((r) => r.runId));
       })
-      .catch((e) => setError(String(e)));
+      .catch(handleError);
   }, []);
 
   useEffect(() => {
+    if (accessDenied) return;
     for (const runId of selected) {
       if (runs[runId]) continue;
       loadHistoryRun(runId)
         .then((run) => setRuns((r) => ({ ...r, [runId]: run })))
-        .catch((e) => setError(String(e)));
+        .catch(handleError);
     }
-  }, [selected, runs]);
+  }, [selected, runs, accessDenied]);
+
 
   const [runA, runB] = selected;
   const diffRows = useMemo(() => {
