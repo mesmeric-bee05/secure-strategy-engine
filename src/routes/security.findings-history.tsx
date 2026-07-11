@@ -86,7 +86,21 @@ function FindingsHistoryPage() {
           Nightly findings archive
         </PageTitle>
 
-        {error && (
+        {accessDenied && (
+          <div
+            role="alert"
+            className="mb-4 rounded-xl border border-gold/40 bg-bg-4 p-4 text-[13px] text-tx-0"
+          >
+            <p className="font-semibold text-gold">Access restricted</p>
+            <p className="mt-1 text-tx-1">
+              {accessDenied.status === 401
+                ? "Sign in with a Security admin account to view nightly findings."
+                : "Your account doesn't have the Security admin role required to view findings history."}
+            </p>
+          </div>
+        )}
+
+        {error && !accessDenied && (
           <div
             role="alert"
             className="mb-4 rounded-xl border border-coral/40 bg-coral-soft p-3 text-[12px] text-coral"
@@ -94,6 +108,7 @@ function FindingsHistoryPage() {
             Couldn’t load findings history: {error}
           </div>
         )}
+
 
         <section className="mb-5 rounded-2xl border border-border-soft bg-bg-3 p-5">
           <div className="mb-3 flex items-center gap-2 text-tx-0">
