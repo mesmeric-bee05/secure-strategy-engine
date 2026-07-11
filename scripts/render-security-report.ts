@@ -162,5 +162,5 @@ const html = `<!doctype html>
 
 writeFileSync(join(REPORTS, "index.html"), html);
 console.log(
-  `[render-security-report] run=${runId} totals=${JSON.stringify(totals)} → reports/index.html + public/security/history/${runId}.json`,
+  `[render-security-report] run=${runId} totals=${JSON.stringify(totals)} → reports/index.html + src/security-history/${runId}.json`,
 );
