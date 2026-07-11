@@ -60,7 +60,7 @@ if (existsSync("reports")) cpSync("reports", OUT_DIR, { recursive: true });
 
 // Summary
 try {
-  const latest = resolve(process.cwd(), "public/security/history/latest.json");
+  const latest = resolve(process.cwd(), "src/security-history/latest.json");
   if (existsSync(latest)) {
     const parsed = JSON.parse(readFileSync(latest, "utf8"));
     const counts = { new: 0, recurring: 0, accepted: 0, ignored: 0, resolved: 0 };
