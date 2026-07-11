@@ -8,10 +8,28 @@ import {
   loadHistoryIndex,
   loadHistoryRun,
   diffRuns,
+  HistoryAccessError,
   type FindingStatus,
   type HistoryIndex,
   type HistoryRun,
 } from "@/lib/security/history";
+
+export const Route = createFileRoute("/security/findings-history")({
+  ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Findings History — TalentGraph Security" },
+      {
+        name: "description",
+        content:
+          "Browse nightly security scan reports and see each finding’s status side by side (new, recurring, accepted, ignored, resolved). Admin-only.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  component: FindingsHistoryPage,
+});
+
 
 export const Route = createFileRoute("/security/findings-history")({
   ssr: false,
