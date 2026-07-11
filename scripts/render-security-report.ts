@@ -1,10 +1,13 @@
 #!/usr/bin/env bun
 /**
  * Renders reports/*.json into:
- *   - reports/index.html           (human-readable summary)
- *   - public/security/history/<runId>.json  (fingerprinted findings)
- *   - public/security/history/latest.json   (alias for the most recent run)
- *   - public/security/history/index.json    (updated run list)
+ *   - reports/index.html                (human-readable summary)
+ *   - src/security-history/<runId>.json (fingerprinted findings, RBAC-gated)
+ *   - src/security-history/latest.json  (alias for the most recent run)
+ *   - src/security-history/index.json   (updated run list)
+ *
+ * Artifacts live under src/ (not public/) so they are only accessible via the
+ * authenticated /api/security/history/* server route.
  *
  * Fingerprinting means the same underlying finding gets the same ID across
  * nightly runs so the Findings History UI can dedupe and diff.
@@ -21,9 +24,10 @@ import {
 
 const ROOT = process.cwd();
 const REPORTS = resolve(ROOT, "reports");
-const HISTORY = resolve(ROOT, "public/security/history");
+const HISTORY = resolve(ROOT, "src/security-history");
 mkdirSync(REPORTS, { recursive: true });
 mkdirSync(HISTORY, { recursive: true });
+
 
 // --- 1. Load raw JSON reports and normalize into RawFinding[] -----------
 const rawFindings: RawFinding[] = [];
