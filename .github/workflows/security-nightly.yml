@@ -76,5 +76,5 @@ jobs:
           name: security-nightly-${{ github.run_id }}
           path: |
             reports/
-            public/security/history/
+            src/security-history/
           retention-days: 30
