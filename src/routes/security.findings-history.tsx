@@ -8,6 +8,7 @@ import {
   loadHistoryIndex,
   loadHistoryRun,
   diffRuns,
+  HistoryAccessError,
   type FindingStatus,
   type HistoryIndex,
   type HistoryRun,
@@ -21,40 +22,52 @@ export const Route = createFileRoute("/security/findings-history")({
       {
         name: "description",
         content:
-          "Browse nightly security scan reports and see each finding’s status side by side (new, recurring, accepted, ignored, resolved).",
+          "Browse nightly security scan reports and see each finding’s status side by side (new, recurring, accepted, ignored, resolved). Admin-only.",
       },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: FindingsHistoryPage,
 });
 
+
+
+
 function FindingsHistoryPage() {
   const [index, setIndex] = useState<HistoryIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState<null | { status: number; message: string }>(null);
   const [runs, setRuns] = useState<Record<string, HistoryRun>>({});
   const [selected, setSelected] = useState<string[]>([]);
+
+  const handleError = (e: unknown) => {
+    if (e instanceof HistoryAccessError) {
+      setAccessDenied({ status: e.status, message: e.message });
+      return;
+    }
+    setError(String(e));
+  };
 
   useEffect(() => {
     loadHistoryIndex()
       .then((idx) => {
         setIndex(idx);
-        // Auto-load latest 2 runs for the side-by-side view.
-        const latest = [...idx.runs].sort((a, b) =>
-          b.timestamp.localeCompare(a.timestamp),
-        );
+        const latest = [...idx.runs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         setSelected(latest.slice(0, 2).map((r) => r.runId));
       })
-      .catch((e) => setError(String(e)));
+      .catch(handleError);
   }, []);
 
   useEffect(() => {
+    if (accessDenied) return;
     for (const runId of selected) {
       if (runs[runId]) continue;
       loadHistoryRun(runId)
         .then((run) => setRuns((r) => ({ ...r, [runId]: run })))
-        .catch((e) => setError(String(e)));
+        .catch(handleError);
     }
-  }, [selected, runs]);
+  }, [selected, runs, accessDenied]);
+
 
   const [runA, runB] = selected;
   const diffRows = useMemo(() => {
@@ -73,7 +86,21 @@ function FindingsHistoryPage() {
           Nightly findings archive
         </PageTitle>
 
-        {error && (
+        {accessDenied && (
+          <div
+            role="alert"
+            className="mb-4 rounded-xl border border-gold/40 bg-bg-4 p-4 text-[13px] text-tx-0"
+          >
+            <p className="font-semibold text-gold">Access restricted</p>
+            <p className="mt-1 text-tx-1">
+              {accessDenied.status === 401
+                ? "Sign in with a Security admin account to view nightly findings."
+                : "Your account doesn't have the Security admin role required to view findings history."}
+            </p>
+          </div>
+        )}
+
+        {error && !accessDenied && (
           <div
             role="alert"
             className="mb-4 rounded-xl border border-coral/40 bg-coral-soft p-3 text-[12px] text-coral"
@@ -81,6 +108,7 @@ function FindingsHistoryPage() {
             Couldn’t load findings history: {error}
           </div>
         )}
+
 
         <section className="mb-5 rounded-2xl border border-border-soft bg-bg-3 p-5">
           <div className="mb-3 flex items-center gap-2 text-tx-0">

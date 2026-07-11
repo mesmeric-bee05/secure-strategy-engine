@@ -1,11 +1,12 @@
 /**
  * Client-side loader for the nightly security findings history.
  *
- * Reads static JSON published under /security/history/*.json by the
- * nightly workflow. Fully typed via Zod so a schema drift surfaces in the
- * UI as an inline error, not a silent blank list.
+ * Fetches from the authenticated /api/security/history/* server route with a
+ * Supabase bearer token. Non-admins get 403; the UI shows a permission
+ * message rather than a silent blank list.
  */
 import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 export const FindingStatusSchema = z.enum([
   "new",
@@ -51,16 +52,49 @@ export const HistoryIndexSchema = z.object({
 });
 export type HistoryIndex = z.infer<typeof HistoryIndexSchema>;
 
-const BASE = "/security/history";
+const BASE = "/api/security/history";
+
+export class HistoryAccessError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "HistoryAccessError";
+  }
+}
+
+async function authorizedFetch(path: string): Promise<Response> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new HistoryAccessError("Sign in required", 401);
+  return fetch(`${BASE}/${path}`, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
 
 export async function loadHistoryIndex(): Promise<HistoryIndex> {
-  const resp = await fetch(`${BASE}/index.json`, { cache: "no-store" });
+  const resp = await authorizedFetch("index.json");
+  if (resp.status === 401 || resp.status === 403) {
+    throw new HistoryAccessError(
+      resp.status === 401 ? "Sign in required" : "Admin role required",
+      resp.status,
+    );
+  }
   if (!resp.ok) return { runs: [] };
   return HistoryIndexSchema.parse(await resp.json());
 }
 
 export async function loadHistoryRun(runId: string): Promise<HistoryRun> {
-  const resp = await fetch(`${BASE}/${encodeURIComponent(runId)}.json`, { cache: "no-store" });
+  if (!/^[a-zA-Z0-9._-]+$/.test(runId)) throw new Error("invalid runId");
+  const resp = await authorizedFetch(`${runId}.json`);
+  if (resp.status === 401 || resp.status === 403) {
+    throw new HistoryAccessError(
+      resp.status === 401 ? "Sign in required" : "Admin role required",
+      resp.status,
+    );
+  }
   if (!resp.ok) throw new Error(`Run ${runId} not found`);
   return HistoryRunSchema.parse(await resp.json());
 }

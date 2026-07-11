@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SecurityFindingsHistoryRouteImport } from './routes/security.findings-history'
 import { Route as OpportunitiesMapRouteImport } from './routes/opportunities.map'
 import { Route as CredentialIdRouteImport } from './routes/credential.$id'
+import { Route as ApiSecurityHistoryFileRouteImport } from './routes/api/security/history.$file'
 
 const TrustGraphRoute = TrustGraphRouteImport.update({
   id: '/trust-graph',
@@ -76,6 +77,11 @@ const CredentialIdRoute = CredentialIdRouteImport.update({
   path: '/credential/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSecurityHistoryFileRoute = ApiSecurityHistoryFileRouteImport.update({
+  id: '/api/security/history/$file',
+  path: '/api/security/history/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
   '/security/findings-history': typeof SecurityFindingsHistoryRoute
+  '/api/security/history/$file': typeof ApiSecurityHistoryFileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
   '/security/findings-history': typeof SecurityFindingsHistoryRoute
+  '/api/security/history/$file': typeof ApiSecurityHistoryFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/credential/$id': typeof CredentialIdRoute
   '/opportunities/map': typeof OpportunitiesMapRoute
   '/security/findings-history': typeof SecurityFindingsHistoryRoute
+  '/api/security/history/$file': typeof ApiSecurityHistoryFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/credential/$id'
     | '/opportunities/map'
     | '/security/findings-history'
+    | '/api/security/history/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/credential/$id'
     | '/opportunities/map'
     | '/security/findings-history'
+    | '/api/security/history/$file'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/credential/$id'
     | '/opportunities/map'
     | '/security/findings-history'
+    | '/api/security/history/$file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   SkillsRoute: typeof SkillsRoute
   TrustGraphRoute: typeof TrustGraphRoute
   CredentialIdRoute: typeof CredentialIdRoute
+  ApiSecurityHistoryFileRoute: typeof ApiSecurityHistoryFileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CredentialIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/security/history/$file': {
+      id: '/api/security/history/$file'
+      path: '/api/security/history/$file'
+      fullPath: '/api/security/history/$file'
+      preLoaderRoute: typeof ApiSecurityHistoryFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -287,16 +307,8 @@ const rootRouteChildren: RootRouteChildren = {
   SkillsRoute: SkillsRoute,
   TrustGraphRoute: TrustGraphRoute,
   CredentialIdRoute: CredentialIdRoute,
+  ApiSecurityHistoryFileRoute: ApiSecurityHistoryFileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
