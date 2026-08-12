@@ -49,6 +49,16 @@ function FindingsHistoryPage() {
     setError(String(e));
   };
 
+  // Audit the page view exactly once per mount (best-effort, never blocking).
+  const viewLogged = useRef(false);
+  useEffect(() => {
+    if (viewLogged.current) return;
+    viewLogged.current = true;
+    void logSecurityHistoryView().catch(() => {
+      /* audit is best-effort; UI must not break */
+    });
+  }, []);
+
   useEffect(() => {
     loadHistoryIndex()
       .then((idx) => {
