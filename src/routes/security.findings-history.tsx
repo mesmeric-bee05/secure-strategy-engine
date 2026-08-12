@@ -159,7 +159,11 @@ function FindingsHistoryPage() {
                     .map((r) => {
                       const checked = selected.includes(r.runId);
                       return (
-                        <tr key={r.runId} className="border-t border-border-soft">
+                        <tr
+                          key={r.runId}
+                          data-testid={`run-row-${r.runId}`}
+                          className="border-t border-border-soft"
+                        >
                           <td className="p-2">
                             <input
                               type="checkbox"
@@ -211,6 +215,7 @@ function FindingsHistoryPage() {
               {diffRows.map((row) => (
                 <article
                   key={row.fingerprint}
+                  data-testid={`diff-row-${row.fingerprint}`}
                   className="grid grid-cols-1 gap-2 rounded-lg border border-border-soft bg-bg-4 p-3 md:grid-cols-[220px_1fr_1fr]"
                 >
                   <div>
@@ -222,8 +227,8 @@ function FindingsHistoryPage() {
                       {row.a?.scanner ?? row.b?.scanner}
                     </p>
                   </div>
-                  <StatusCell finding={row.a} label={runA} />
-                  <StatusCell finding={row.b} label={runB} />
+                  <StatusCell finding={row.a} label={runA} run="a" />
+                  <StatusCell finding={row.b} label={runB} run="b" />
                 </article>
               ))}
             </div>
@@ -237,13 +242,19 @@ function FindingsHistoryPage() {
 function StatusCell({
   finding,
   label,
+  run,
 }: {
   finding?: { status: FindingStatus; resource?: string; severity?: string };
   label: string;
+  run: "a" | "b";
 }) {
   if (!finding) {
     return (
-      <div className="rounded border border-border-soft bg-bg-3 p-2 text-[10.5px] text-tx-2">
+      <div
+        data-run={run}
+        data-status="absent"
+        className="rounded border border-border-soft bg-bg-3 p-2 text-[10.5px] text-tx-2"
+      >
         <span className="font-mono text-[9.5px]">{label}</span>
         <div className="mt-1 inline-flex items-center gap-1 text-teal">
           <CheckCircle2 className="h-3 w-3" aria-hidden /> Not present
@@ -254,7 +265,11 @@ function StatusCell({
   const meta = STATUS_META[finding.status];
   const Icon = meta.icon;
   return (
-    <div className="rounded border border-border-soft bg-bg-3 p-2 text-[10.5px] text-tx-1">
+    <div
+      data-run={run}
+      data-status={finding.status}
+      className="rounded border border-border-soft bg-bg-3 p-2 text-[10.5px] text-tx-1"
+    >
       <span className="font-mono text-[9.5px] text-tx-2">{label}</span>
       <div className={`mt-1 inline-flex items-center gap-1 ${meta.className}`}>
         <Icon className="h-3 w-3" aria-hidden /> {meta.label}
