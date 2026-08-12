@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, History, ShieldOff, Sparkles } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { PageTitle } from "@/components/PageHeader";
+import { logSecurityHistoryView } from "@/lib/server-fns/security.functions";
 import {
   loadHistoryIndex,
   loadHistoryRun,
