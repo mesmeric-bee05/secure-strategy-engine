@@ -54,6 +54,7 @@ run(
   ["scripts/security/collect.ts", "--out=reports/collected.json"],
 );
 run("Render HTML report", "bun", ["scripts/render-security-report.ts"]);
+run("Validate history artifacts", "bun", ["scripts/security/validate-history.ts"]);
 
 // Copy artifacts to .security-out/ for easy download
 if (existsSync("reports")) cpSync("reports", OUT_DIR, { recursive: true });
