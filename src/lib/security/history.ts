@@ -5,52 +5,25 @@
  * Supabase bearer token. Non-admins get 403; the UI shows a permission
  * message rather than a silent blank list.
  */
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  FindingStatusSchema,
+  HistoryFindingSchema,
+  HistoryIndexSchema,
+  HistoryRunSchema,
+  type FindingStatus,
+  type HistoryFinding,
+  type HistoryIndex,
+  type HistoryRun,
+} from "./history-schema";
 
-export const FindingStatusSchema = z.enum([
-  "new",
-  "recurring",
-  "accepted",
-  "ignored",
-  "resolved",
-]);
-export type FindingStatus = z.infer<typeof FindingStatusSchema>;
-
-export const HistoryFindingSchema = z.object({
-  fingerprint: z.string().min(4),
-  scanner: z.string(),
-  internal_id: z.string().optional(),
-  rule: z.string().optional(),
-  resource: z.string().optional(),
-  severity: z.string().optional(),
-  message: z.string().optional(),
-  status: FindingStatusSchema,
-  firstSeen: z.string(),
-  lastSeen: z.string(),
-});
-export type HistoryFinding = z.infer<typeof HistoryFindingSchema>;
-
-export const HistoryRunSchema = z.object({
-  runId: z.string(),
-  timestamp: z.string(),
-  totals: z.record(z.string(), z.number()),
-  findings: z.array(HistoryFindingSchema),
-});
-export type HistoryRun = z.infer<typeof HistoryRunSchema>;
-
-export const HistoryIndexSchema = z.object({
-  runs: z
-    .array(
-      z.object({
-        runId: z.string(),
-        timestamp: z.string(),
-        totals: z.record(z.string(), z.number()),
-      }),
-    )
-    .default([]),
-});
-export type HistoryIndex = z.infer<typeof HistoryIndexSchema>;
+export {
+  FindingStatusSchema,
+  HistoryFindingSchema,
+  HistoryIndexSchema,
+  HistoryRunSchema,
+};
+export type { FindingStatus, HistoryFinding, HistoryIndex, HistoryRun };
 
 const BASE = "/api/security/history";
 
