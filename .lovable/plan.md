@@ -1,84 +1,50 @@
+# Security Findings History: schema validation, RBAC tests, audit logging, richer E2E
 
-## Scope
+Four hardening items on the nightly security-findings pipeline and its admin-only UI.
 
-Four focused deliverables on top of the existing Security → Findings History and nightly scan infrastructure. No unrelated refactors.
+## 1. Schema validation for history artifacts (fails CI before rendering)
 
-## 1. E2E: Findings History renders side-by-side statuses
+- Add a single shared schema module (`src/lib/security/history-schema.ts`) holding the Zod schemas for a run file (`runId`, `timestamp`, `totals`, `findings[]`) and for `index.json`, so the render script, the API route, and the client all validate the same shape.
+- `scripts/render-security-report.ts` validates every generated run file plus the rewritten `index.json` before writing. On failure it prints the offending file, path, and message, and exits non-zero.
+- Add `scripts/security/validate-history.ts` (wired as `bun run security:validate`) that walks `src/security-history/*.json` and validates all of them — run in the nightly workflow and in the regular checks job so a malformed committed artifact fails CI.
+- Add a unit test covering: valid run passes, missing `runId` fails, bad `status` enum fails, non-numeric `totals` fails, malformed `index.json` fails.
 
-New Playwright spec `tests/e2e/security-findings-history.spec.ts`.
+## 2. Explicit RBAC rejection tests for `/api/security/history/$file`
 
-- Seed two deterministic fixtures under `public/security/history/` at test setup (via a `test.beforeAll` that writes `run-e2e-A.json`, `run-e2e-B.json`, and an `index.json`) covering one `new`, one `recurring`, one `accepted`, one `ignored`, and one `resolved` finding.
-- Sign in with the seeded admin passkey helper (`tests/e2e/_helpers/auth.ts`) so RBAC (see §3) allows access.
-- Navigate to `/security/findings-history`, wait for both run cards to load, then assert:
-  - Both runIds appear in the Runs table with correct totals.
-  - Each fingerprint row has the expected status label (`NEW`, `RECURRING`, `ACCEPTED`, `IGNORED`, `RESOLVED`) in the correct A/B column via `getByRole` + `aria-label`.
-  - A `resolved` finding shows "Not present" in the newer column.
-- Restore original history files in `afterAll`.
+Add `tests/security/history-endpoint.rbac.test.ts` that imports the route handler and exercises:
 
-## 2. Regression: fingerprint dedupe + additive artifacts between runs
+- no `Authorization` header → 401 with `WWW-Authenticate`
+- malformed / non-Bearer header → 401
+- valid token but `has_role(admin)` false → 403
+- `has_role` RPC error → 403 (fail closed)
+- admin token, unknown filename → 404
+- admin token, path traversal (`../secret.json`, `foo.txt`) → 404, never a file read
+- admin token, real file → 200 with `no-store` and `nosniff` headers
 
-New Vitest suite `tests/security/fingerprint.dedupe.regression.test.ts`.
+Supabase client is stubbed at module level so the test runs offline. Response bodies are asserted to never leak the reason for denial beyond `Forbidden`/`Unauthorized`.
 
-- Uses `scripts/security/fingerprint.ts` `dedupe` + `diffAgainstPrevious`.
-- Case A: identical findings across two runs produce zero `new`, all `recurring`, and identical fingerprint sets.
-- Case B: adding one novel finding yields exactly one `new` fingerprint; all prior fingerprints stay `recurring`.
-- Case C: reordering, whitespace, and casing variants of the same finding collapse to a single fingerprint (guards against fingerprint drift).
-- Case D: artifact invariant — assert that `nextRun.fingerprints ⊇ prevRun.fingerprints \ resolved` and that new fingerprints in `nextRun` are strictly those classified `new`.
+## 3. Audit logging for page and artifact access
 
-## 3. RBAC on Findings History route + JSON artifacts
+- Artifact route: after the role check resolves, log one `security_history_artifact_read` event via the existing append-only audit logger, with actor id, requested filename, outcome (`granted` / `denied_401` / `denied_403` / `not_found`), hashed IP + user agent, and server timestamp. Denials are logged too. Audit failure never changes the response.
+- Page view: a `logSecurityHistoryView` server function (auth middleware, admin check) records `security_history_view` with actor id and timestamp; the Findings History route calls it once on mount.
+- Both use `recordAudit`, so redaction and the immutable `audit_log` table apply unchanged. No finding contents are written into metadata — only counts and filenames.
+- Add a test asserting the artifact route emits exactly one audit event per request with the right action and outcome for granted and denied paths.
 
-Route protection:
-- Move `src/routes/security.findings-history.tsx` into the `_authenticated` subtree as `src/routes/_authenticated/security.findings-history.tsx` so the managed auth gate applies.
-- Add a `beforeLoad` that calls a new protected server function `requireSecurityViewer()` (in `src/lib/server-fns/security.functions.ts`) which uses `requireSupabaseAuth` middleware and checks `public.has_role(auth.uid(), 'admin')` OR a new `security_viewer` role via the existing `has_role` function.
-- On failure, `throw redirect({ to: "/" })` with a toast-friendly search param.
-- Update the `/security` dashboard link to only render for authorized users (fetch the same server fn via TanStack Query).
+## 4. Extend the Findings History E2E
 
-Artifact protection:
-- Move nightly artifacts out of `public/security/history/` (world-readable) into a non-public path served by a new authenticated server route `src/routes/api/security/history.$runId.ts` that:
-  - Requires bearer auth via `requireSupabaseAuth`.
-  - Verifies `has_role(uid, 'admin' | 'security_viewer')`.
-  - Streams the JSON from a build-time bundled directory (`src/security-history/*.json` imported via `import.meta.glob`) or from a Supabase Storage bucket with a private policy — pick storage if the workflow already uploads there; otherwise ship the bundled-directory approach and update the nightly workflow to commit files into `src/security-history/` instead of `public/`.
-- Add `index.json` sibling endpoint `api/security/history.index.ts` with the same guard.
-- Update `src/lib/security/history.ts` to fetch from the new endpoints and include the Supabase bearer token.
-- DB: new migration adding `'security_viewer'` to the `app_role` enum, plus GRANT/policy notes; update `docs/security/security-memory.md` + `findings.accepted.json` in the same commit to satisfy the drift gate.
+Extend `tests/e2e/security-findings-history.spec.ts` to assert diff content rather than just label presence, using per-row scoping:
 
-Tests:
-- Unit test for `requireSecurityViewer` (allow admin, allow security_viewer, deny plain user, deny anon).
-- Playwright negative test: unauthenticated GET of `/api/security/history/index.json` returns 401; authenticated non-admin returns 403.
+- the row for a recurring fingerprint shows `RECURRING` in both run columns
+- the new fingerprint shows `Not present` in the older column and `NEW` in the newer column
+- the resolved fingerprint shows `RECURRING` then `RESOLVED`
+- accepted and ignored fingerprints keep their badge in both columns
+- resource and severity text renders in the correct column
+- run-table totals match the stubbed `totals` per run
 
-## 4. README: one-command local rescan
+To make rows addressable, the diff row gets a stable `data-testid` (fingerprint-based) and each status cell gets a `data-run` attribute — presentation-only additions to the existing component.
 
-Append a new "Security rescan (local)" section to `README.md` documenting:
-- Command: `bun run security:rescan` (already wired to `scripts/security/rescan.mjs`).
-- Prereqs: `bun install`, env vars if any.
-- Output locations:
-  - HTML report path
-  - JSON artifacts path (post-RBAC: `src/security-history/`)
-  - Drift report from `scripts/check-security-memory-drift.ts`
-- How to view: local static serve command + link to the in-app `/security/findings-history` route.
-- Note on nightly CI parity (`.github/workflows/security-nightly.yml`).
+## Technical notes
 
-## Files touched
-
-```text
-NEW  tests/e2e/security-findings-history.spec.ts
-NEW  tests/security/fingerprint.dedupe.regression.test.ts
-NEW  src/lib/server-fns/security.functions.ts
-NEW  src/routes/api/security/history.$runId.ts
-NEW  src/routes/api/security/history.index.ts
-NEW  supabase/migrations/<ts>_add_security_viewer_role.sql
-MOVE src/routes/security.findings-history.tsx → src/routes/_authenticated/security.findings-history.tsx
-EDIT src/lib/security/history.ts                  (fetch via API + bearer)
-EDIT src/routes/security.tsx                      (conditional link)
-EDIT .github/workflows/security-nightly.yml       (write to src/security-history/)
-EDIT scripts/security/rescan.mjs                  (mirror output path)
-EDIT docs/security/security-memory.md             (document new role + endpoints)
-EDIT docs/security/findings.accepted.json         (drift-gate pair)
-EDIT README.md                                    (new section)
-```
-
-## Out of scope
-
-- Any UI redesign of the Findings History page.
-- Changes to unrelated security memory entries.
-- New scanners or rule authoring.
+- Files touched: `src/lib/security/history-schema.ts` (new), `src/lib/security/history.ts` (reuse shared schemas), `scripts/render-security-report.ts`, `scripts/security/validate-history.ts` (new), `src/routes/api/security/history.$file.ts`, `src/lib/server-fns/security.functions.ts`, `src/routes/security.findings-history.tsx`, `package.json` scripts, `.github/workflows/security-nightly.yml` + `tests.yml`, plus new tests under `tests/security/` and the existing E2E spec.
+- No database migration is needed: `audit_log` and `recordAudit` already exist and writes go through the service role.
+- Existing statuses (`new`, `recurring`, `accepted`, `ignored`, `resolved`) and the fingerprinting logic stay unchanged.
