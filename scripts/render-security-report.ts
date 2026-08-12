@@ -21,6 +21,10 @@ import {
   type RawFinding,
   type DiffedFinding,
 } from "./security/fingerprint.ts";
+import {
+  validateHistoryArtifact,
+  formatIssues,
+} from "../src/lib/security/history-schema.ts";
 
 const ROOT = process.cwd();
 const REPORTS = resolve(ROOT, "reports");
