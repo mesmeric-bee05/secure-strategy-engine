@@ -14,6 +14,7 @@
     "test:i18n:strict": "vitest run src/lib/i18n/__tests__/locales.strict.test.ts",
     "test:e2e": "playwright test",
     "security:rescan": "bun scripts/security/rescan.mjs",
+    "security:validate-history": "bun scripts/security/validate-history.ts",
     "security:memory-drift": "bun scripts/check-security-memory-drift.ts"
   },
   "dependencies": {

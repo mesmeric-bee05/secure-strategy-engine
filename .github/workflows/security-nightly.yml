@@ -56,6 +56,12 @@ jobs:
       - name: Fingerprint findings + render report
         run: bun scripts/render-security-report.ts
 
+      - name: Validate history artifact schemas
+        run: bun scripts/security/validate-history.ts
+
+      - name: Schema + RBAC tests for history artifacts
+        run: bunx vitest run tests/security/history-schema.test.ts tests/security/history-endpoint.rbac.test.ts
+
       - name: Commit updated history
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
