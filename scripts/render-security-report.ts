@@ -21,6 +21,10 @@ import {
   type RawFinding,
   type DiffedFinding,
 } from "./security/fingerprint.ts";
+import {
+  validateHistoryArtifact,
+  formatIssues,
+} from "../src/lib/security/history-schema.ts";
 
 const ROOT = process.cwd();
 const REPORTS = resolve(ROOT, "reports");
@@ -95,6 +99,21 @@ const runId = process.env.GITHUB_RUN_ID
 const timestamp = new Date().toISOString();
 
 const runPayload = { runId, timestamp, totals, findings: diffed };
+
+/**
+ * Fail the run BEFORE writing anything if the payload is malformed — a bad
+ * artifact must never land in src/security-history/ or the HTML report.
+ */
+function assertValid(fileName: string, payload: unknown): void {
+  const result = validateHistoryArtifact(fileName, payload);
+  if (!result.ok) {
+    console.error(`[render-security-report] schema validation failed for ${fileName}`);
+    console.error(formatIssues(fileName, result.issues));
+    process.exit(1);
+  }
+}
+
+assertValid(`${runId}.json`, runPayload);
 writeFileSync(join(HISTORY, `${runId}.json`), JSON.stringify(runPayload, null, 2));
 writeFileSync(previousPath, JSON.stringify(runPayload, null, 2));
 
@@ -109,6 +128,7 @@ const nextIndex = [
 ]
   .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
   .slice(0, 60); // keep last 60 runs
+assertValid("index.json", { runs: nextIndex });
 writeFileSync(indexPath, JSON.stringify({ runs: nextIndex }, null, 2));
 
 // --- 4. HTML summary --------------------------------------------------

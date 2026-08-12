@@ -12,9 +12,18 @@ const admin = SKIP
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+/**
+ * Postgres catalog views (pg_policies, information_schema.*) are not exposed
+ * through the Data API by default. When introspection is unavailable the reads
+ * return zero rows, which would make every assertion below pass or fail
+ * vacuously — so we detect that explicitly: skip locally, fail loudly in CI.
+ */
+const IN_CI = process.env.CI === "true" || process.env.CI === "1";
+
 describe.skipIf(SKIP)("RLS + EXECUTE invariants", () => {
   let policies: Record<string, string[]> = {};
   let grants: Array<{ routine: string; grantee: string }> = [];
+  let introspectionAvailable = false;
 
   beforeAll(async () => {
     const { data: policyRows, error: e1 } = await admin!
@@ -38,6 +47,8 @@ describe.skipIf(SKIP)("RLS + EXECUTE invariants", () => {
       return acc;
     }, {});
 
+    introspectionAvailable = rows.length > 0;
+
     const { data: grantRows } = await admin!
       .from("information_schema.role_routine_grants" as never)
       .select("routine_name,grantee")
@@ -49,8 +60,22 @@ describe.skipIf(SKIP)("RLS + EXECUTE invariants", () => {
     }));
   });
 
+  it("catalog introspection is reachable (required in CI)", () => {
+    if (!introspectionAvailable && !IN_CI) {
+      console.warn(
+        "[rls.invariants] pg_policies is not exposed via the Data API; policy assertions skipped locally.",
+      );
+      return;
+    }
+    expect(
+      introspectionAvailable,
+      "pg_policies returned no rows — cannot verify RLS invariants",
+    ).toBe(true);
+  });
+
   for (const [table, want] of Object.entries(expected.tables)) {
-    it(`policies on ${table} match baseline`, () => {
+    it(`policies on ${table} match baseline`, (ctx) => {
+      if (!introspectionAvailable) return ctx.skip();
       const got = (policies[table] ?? []).slice().sort();
       const wantSorted = [...want].sort();
       // Allow extra policies as long as required ones are present
@@ -61,7 +86,8 @@ describe.skipIf(SKIP)("RLS + EXECUTE invariants", () => {
   }
 
   for (const fn of expected.function_grants.no_anon_or_authenticated) {
-    it(`${fn} has no EXECUTE for anon/authenticated`, () => {
+    it(`${fn} has no EXECUTE for anon/authenticated`, (ctx) => {
+      if (!introspectionAvailable) return ctx.skip();
       const matches = grants.filter(
         (g) => g.routine === fn && (g.grantee === "anon" || g.grantee === "authenticated"),
       );
@@ -70,7 +96,8 @@ describe.skipIf(SKIP)("RLS + EXECUTE invariants", () => {
   }
 
   for (const fn of expected.function_grants.authenticated_only) {
-    it(`${fn} has no EXECUTE for anon`, () => {
+    it(`${fn} has no EXECUTE for anon`, (ctx) => {
+      if (!introspectionAvailable) return ctx.skip();
       const anonGrant = grants.find((g) => g.routine === fn && g.grantee === "anon");
       expect(anonGrant).toBeUndefined();
     });

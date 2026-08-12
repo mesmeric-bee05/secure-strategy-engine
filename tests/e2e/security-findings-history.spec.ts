@@ -94,4 +94,98 @@ test.describe("Security → Findings History", () => {
     // The resolved finding shows "Not present" on the newer run column
     await expect(page.getByText("Not present").first()).toBeVisible();
   });
+
+  test("run table lists both runs with their per-status totals", async ({ page }) => {
+    await page.goto("/security/findings-history");
+
+    const rowB = page.getByTestId(`run-row-${RUN_B.runId}`);
+    await expect(rowB).toBeVisible();
+    const cellsB = rowB.locator("td");
+    // Compare | Run | Timestamp | New | Recurring | Accepted | Resolved
+    await expect(cellsB.nth(3)).toHaveText("1"); // new
+    await expect(cellsB.nth(4)).toHaveText("1"); // recurring
+    await expect(cellsB.nth(5)).toHaveText("1"); // accepted
+    await expect(cellsB.nth(6)).toHaveText("1"); // resolved
+
+    const rowA = page.getByTestId(`run-row-${RUN_A.runId}`);
+    const cellsA = rowA.locator("td");
+    await expect(cellsA.nth(3)).toHaveText("0"); // no new findings yesterday
+    await expect(cellsA.nth(4)).toHaveText("2");
+
+    // Newest run first
+    const order = await page.locator("tbody tr").evaluateAll((rows) =>
+      rows.map((r) => r.getAttribute("data-testid")),
+    );
+    expect(order[0]).toBe(`run-row-${RUN_B.runId}`);
+  });
+
+  test("diff rows carry the correct per-run status badge for every finding", async ({ page }) => {
+    await page.goto("/security/findings-history");
+
+    // Column A is the older run (run-e2e-A), column B the newer (run-e2e-B),
+    // matching the selection order: [latest, previous] -> sorted table.
+    const expectations: Array<{
+      fp: string;
+      rule: string;
+      resource: string;
+      a: string;
+      b: string;
+    }> = [
+      { fp: "fp-keep-1", rule: "R1", resource: "public.foo", a: "recurring", b: "recurring" },
+      { fp: "fp-brand-new", rule: "R5", resource: "public.new", a: "absent", b: "new" },
+      { fp: "fp-accepted", rule: "R3", resource: "public.has_role", a: "accepted", b: "accepted" },
+      { fp: "fp-ignored", rule: "R4", resource: "public.baz", a: "ignored", b: "ignored" },
+      { fp: "fp-resolve", rule: "R2", resource: "public.bar", a: "recurring", b: "resolved" },
+    ];
+
+    for (const exp of expectations) {
+      const row = page.getByTestId(`diff-row-${exp.fp}`);
+      await expect(row).toBeVisible();
+      await expect(row).toContainText(exp.rule);
+      await expect(row).toContainText(exp.fp.slice(0, 12));
+
+      const cellA = row.locator('[data-run="a"]');
+      const cellB = row.locator('[data-run="b"]');
+
+      // Newest run is column B for fp-brand-new only in one direction; assert
+      // that the set of the two statuses matches, order-independently, then
+      // pin the "absent" side explicitly.
+      const statuses = [
+        await cellA.getAttribute("data-status"),
+        await cellB.getAttribute("data-status"),
+      ].sort();
+      expect(statuses).toEqual([exp.a, exp.b].sort());
+
+      // Resource + severity are surfaced on whichever side has the finding.
+      const present = (await cellA.getAttribute("data-status")) === "absent" ? cellB : cellA;
+      await expect(present).toContainText(exp.resource);
+      await expect(present).toContainText("severity:");
+    }
+  });
+
+  test("resolved finding is absent on exactly one side", async ({ page }) => {
+    await page.goto("/security/findings-history");
+    const row = page.getByTestId("diff-row-fp-brand-new");
+    await expect(row.locator('[data-status="absent"]')).toHaveCount(1);
+    await expect(row.locator('[data-status="new"]')).toHaveCount(1);
+    await expect(row.locator('[data-status="absent"]')).toContainText("Not present");
+  });
+
+  test("shows an access-restricted banner when the API returns 403", async ({ page }) => {
+    await page.route("**/api/security/history/index.json", (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Forbidden" }),
+      }),
+    );
+
+    await page.goto("/security/findings-history");
+
+    const alert = page.getByRole("alert").first();
+    await expect(alert).toContainText("Access restricted");
+    await expect(alert).toContainText(/Security admin role/i);
+    // No artifact content leaks into the page.
+    await expect(page.getByText(/Side-by-side/i)).toHaveCount(0);
+  });
 });

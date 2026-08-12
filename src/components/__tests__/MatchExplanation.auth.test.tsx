@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-// Mocks must be declared before the component import.
-const getSession = vi.fn();
+// Mocks are hoisted above imports, so the spy must be created with vi.hoisted.
+const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { getSession } },
 }));
