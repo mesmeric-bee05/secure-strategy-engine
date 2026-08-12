@@ -5,7 +5,7 @@
  * stay generic, and every request (granted or denied) must emit exactly one
  * audit event with the correct action and outcome.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const auditCalls: Array<Record<string, unknown>> = [];
 vi.mock("@/lib/security/audit", () => ({
@@ -56,8 +56,14 @@ const ADMIN = { authorization: "Bearer valid.jwt.token" };
 beforeEach(() => {
   auditCalls.length = 0;
   scenario = {};
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test";
+  // stubEnv keeps the mutation scoped to this file — other suites (e.g. the
+  // live RLS invariant checks) must not see fake Supabase credentials.
+  vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 function lastAudit() {
@@ -134,7 +140,7 @@ describe("security history endpoint — RBAC rejections", () => {
   });
 
   it("returns 500 without artifact bytes when misconfigured", async () => {
-    delete process.env.SUPABASE_URL;
+    vi.stubEnv("SUPABASE_URL", "");
     const res = await GET({ request: req(ADMIN), params: { file: "index.json" } });
     expect(res.status).toBe(500);
     expect(lastAudit().metadata).toMatchObject({ outcome: "misconfigured" });
