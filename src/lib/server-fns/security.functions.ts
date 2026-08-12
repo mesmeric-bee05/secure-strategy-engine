@@ -11,7 +11,6 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { recordAudit } from "@/lib/security/audit";
 
 export const checkSecurityViewer = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -35,6 +34,9 @@ export const logSecurityHistoryView = createServerFn({ method: "POST" })
       _role: "admin",
     });
     const allowed = !error && data === true;
+    // Server-only audit module is loaded inside the handler so it never enters
+    // the client bundle graph.
+    const { recordAudit } = await import("@/lib/security/audit");
     await recordAudit({
       actorId: context.userId,
       action: "security_history_view",
