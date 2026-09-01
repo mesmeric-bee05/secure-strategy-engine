@@ -148,6 +148,21 @@ export const Route = createFileRoute("/api/security/history/$file")({
           return json(404, { error: "Not found" });
         }
 
+        // Conditional request — only reachable after the RBAC checks above, so
+        // a demoted user or stale token still gets 401/403 instead of a 304.
+        const etag = await etagFor(file, contents);
+        if (ifNoneMatchMatches(request.headers.get("if-none-match"), etag)) {
+          await audit(request, file, "granted_304", userId);
+          return new Response(null, {
+            status: 304,
+            headers: {
+              etag,
+              "cache-control": CACHE_CONTROL,
+              "x-content-type-options": "nosniff",
+            },
+          });
+        }
+
         // Defensive: never serve an artifact that fails the shared schema.
         try {
           const result = validateHistoryArtifact(file, JSON.parse(contents));
@@ -156,7 +171,7 @@ export const Route = createFileRoute("/api/security/history/$file")({
               `[security-history] malformed artifact ${file}\n${formatIssues(file, result.issues)}`,
             );
             await audit(request, file, "invalid_artifact", userId);
-            return json(500, { error: "Malformed artifact" });
+            return json(500, { error: "Malformed artifact", issues: result.issues });
           }
         } catch {
           await audit(request, file, "invalid_artifact", userId);
@@ -168,10 +183,12 @@ export const Route = createFileRoute("/api/security/history/$file")({
           status: 200,
           headers: {
             "content-type": "application/json",
-            "cache-control": "private, max-age=0, no-store",
+            etag,
+            "cache-control": CACHE_CONTROL,
             "x-content-type-options": "nosniff",
           },
         });
+
       },
     },
   },
