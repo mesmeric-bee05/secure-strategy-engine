@@ -96,9 +96,37 @@ if (acceptedChanged && !memoryChanged) {
 }
 
 mkdirSync(resolve(process.cwd(), "reports"), { recursive: true });
+const JSON_REPORT_PATH = resolve(process.cwd(), "reports/security-memory-drift.json");
+
+/** Drift score = drifted files, weighted by the number of changed keys. */
+function driftScore(list: Drift[]): number {
+  return list.reduce((acc, d) => acc + 10 + d.changedKeys.length, 0);
+}
+
+function writeJsonReport(status: "ok" | "drift") {
+  writeFileSync(
+    JSON_REPORT_PATH,
+    JSON.stringify(
+      {
+        status,
+        driftScore: driftScore(drifts),
+        driftedFiles: drifts,
+        base,
+        repo: process.env.GITHUB_REPOSITORY ?? null,
+        runId: process.env.GITHUB_RUN_ID ?? null,
+        sha: process.env.GITHUB_SHA ?? null,
+        prNumber: process.env.GITHUB_REF?.match(/refs\/pull\/(\d+)\//)?.[1] ?? null,
+        generatedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
 
 if (drifts.length === 0) {
   writeFileSync(REPORT_PATH, `# Security memory drift check\n\n:white_check_mark: OK — no drift detected.\n`);
+  writeJsonReport("ok");
   console.log("[security-memory-drift] ok");
   process.exit(0);
 }
@@ -107,6 +135,8 @@ const md = [
   `# :warning: Security memory drift detected`,
   ``,
   `The paired-update rule was violated. Update security memory and the corresponding invariants/findings file together.`,
+  ``,
+  `**Drift score**: ${driftScore(drifts)}`,
   ``,
   ...drifts.flatMap((d) => [
     `## \`${d.file}\``,
@@ -122,6 +152,8 @@ const md = [
 ].join("\n");
 
 writeFileSync(REPORT_PATH, md);
+writeJsonReport("drift");
 console.error("[security-memory-drift] paired-update rule violated");
 for (const d of drifts) console.error(` - ${d.file}: ${d.reason}`);
 process.exit(1);
+
