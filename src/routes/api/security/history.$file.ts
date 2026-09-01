@@ -33,6 +33,34 @@ function pick(file: string): string | null {
   return HISTORY_FILES[key] ?? null;
 }
 
+/** Strong ETag = SHA-256 of the artifact bytes. Computed once per file. */
+const etagCache = new Map<string, string>();
+
+async function etagFor(file: string, contents: string): Promise<string> {
+  const cached = etagCache.get(file);
+  if (cached) return cached;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(contents));
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const etag = `"${hex}"`;
+  etagCache.set(file, etag);
+  return etag;
+}
+
+/** RFC 9110 If-None-Match: `*` or a comma-separated list, possibly weak. */
+function ifNoneMatchMatches(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  const trimmed = header.trim();
+  if (trimmed === "*") return true;
+  return trimmed
+    .split(",")
+    .map((t) => t.trim().replace(/^W\//, ""))
+    .some((t) => t === etag);
+}
+
+const CACHE_CONTROL = "private, no-cache, must-revalidate";
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,11 +74,13 @@ function json(status: number, body: unknown): Response {
 
 export type ArtifactOutcome =
   | "granted"
+  | "granted_304"
   | "denied_401"
   | "denied_403"
   | "not_found"
   | "invalid_artifact"
   | "misconfigured";
+
 
 async function audit(
   request: Request,
