@@ -50,6 +50,21 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body: message });
             }
 
+      - name: Notify webhook (configurable)
+        if: always()
+        env:
+          SECURITY_DRIFT_WEBHOOK_URL: ${{ secrets.SECURITY_DRIFT_WEBHOOK_URL }}
+        run: bun scripts/security/notify-drift.ts
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-memory-drift-${{ github.run_id }}
+          path: reports/
+          retention-days: 14
+
       - name: Fail if drift detected
         if: steps.drift.outcome == 'failure'
         run: exit 1
+
