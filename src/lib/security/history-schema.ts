@@ -73,7 +73,11 @@ export type HistoryIndex = z.infer<typeof HistoryIndexSchema>;
 
 export interface ValidationIssue {
   path: string;
+  /** RFC 6901 JSON pointer, e.g. `/findings/12/severity`. */
+  pointer: string;
   message: string;
+  /** Zod issue code (e.g. `invalid_type`, `too_small`), useful for UI hints. */
+  code?: string;
 }
 
 export interface ValidationResult {
@@ -81,10 +85,23 @@ export interface ValidationResult {
   issues: ValidationIssue[];
 }
 
+/** Convert a zod path array into an RFC 6901 JSON pointer. */
+export function toJsonPointer(path: ReadonlyArray<string | number | symbol>): string {
+  if (path.length === 0) return "";
+  return (
+    "/" +
+    path
+      .map((p) => String(p).replace(/~/g, "~0").replace(/\//g, "~1"))
+      .join("/")
+  );
+}
+
 function toIssues(error: z.ZodError): ValidationIssue[] {
   return error.issues.map((i) => ({
     path: i.path.length ? i.path.join(".") : "(root)",
+    pointer: toJsonPointer(i.path) || "/",
     message: i.message,
+    code: i.code,
   }));
 }
 
@@ -96,5 +113,6 @@ export function validateHistoryArtifact(fileName: string, data: unknown): Valida
 }
 
 export function formatIssues(fileName: string, issues: ValidationIssue[]): string {
-  return issues.map((i) => `  ${fileName} → ${i.path}: ${i.message}`).join("\n");
+  return issues.map((i) => `  ${fileName} → ${i.pointer}: ${i.message}`).join("\n");
 }
+

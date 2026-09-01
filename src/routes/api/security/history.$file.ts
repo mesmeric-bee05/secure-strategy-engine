@@ -33,6 +33,34 @@ function pick(file: string): string | null {
   return HISTORY_FILES[key] ?? null;
 }
 
+/** Strong ETag = SHA-256 of the artifact bytes. Computed once per file. */
+const etagCache = new Map<string, string>();
+
+async function etagFor(file: string, contents: string): Promise<string> {
+  const cached = etagCache.get(file);
+  if (cached) return cached;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(contents));
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const etag = `"${hex}"`;
+  etagCache.set(file, etag);
+  return etag;
+}
+
+/** RFC 9110 If-None-Match: `*` or a comma-separated list, possibly weak. */
+function ifNoneMatchMatches(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  const trimmed = header.trim();
+  if (trimmed === "*") return true;
+  return trimmed
+    .split(",")
+    .map((t) => t.trim().replace(/^W\//, ""))
+    .some((t) => t === etag);
+}
+
+const CACHE_CONTROL = "private, no-cache, must-revalidate";
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,11 +74,13 @@ function json(status: number, body: unknown): Response {
 
 export type ArtifactOutcome =
   | "granted"
+  | "granted_304"
   | "denied_401"
   | "denied_403"
   | "not_found"
   | "invalid_artifact"
   | "misconfigured";
+
 
 async function audit(
   request: Request,
@@ -118,6 +148,21 @@ export const Route = createFileRoute("/api/security/history/$file")({
           return json(404, { error: "Not found" });
         }
 
+        // Conditional request — only reachable after the RBAC checks above, so
+        // a demoted user or stale token still gets 401/403 instead of a 304.
+        const etag = await etagFor(file, contents);
+        if (ifNoneMatchMatches(request.headers.get("if-none-match"), etag)) {
+          await audit(request, file, "granted_304", userId);
+          return new Response(null, {
+            status: 304,
+            headers: {
+              etag,
+              "cache-control": CACHE_CONTROL,
+              "x-content-type-options": "nosniff",
+            },
+          });
+        }
+
         // Defensive: never serve an artifact that fails the shared schema.
         try {
           const result = validateHistoryArtifact(file, JSON.parse(contents));
@@ -126,7 +171,7 @@ export const Route = createFileRoute("/api/security/history/$file")({
               `[security-history] malformed artifact ${file}\n${formatIssues(file, result.issues)}`,
             );
             await audit(request, file, "invalid_artifact", userId);
-            return json(500, { error: "Malformed artifact" });
+            return json(500, { error: "Malformed artifact", issues: result.issues });
           }
         } catch {
           await audit(request, file, "invalid_artifact", userId);
@@ -138,10 +183,12 @@ export const Route = createFileRoute("/api/security/history/$file")({
           status: 200,
           headers: {
             "content-type": "application/json",
-            "cache-control": "private, max-age=0, no-store",
+            etag,
+            "cache-control": CACHE_CONTROL,
             "x-content-type-options": "nosniff",
           },
         });
+
       },
     },
   },
